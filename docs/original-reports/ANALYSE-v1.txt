@@ -1,0 +1,162 @@
+OpenKH Panacea VERSION export completion – Befund und Implementierung
+12.10.2026
+
+1. EINGABEN
+
+version.dll, 400384 Bytes, PE32+ AMD64 (Machine 0x8664)
+SHA-256 ea8eb87b45194927898e3084aecb5f36d3b4c1e2bfd7262b85c11d3e603b52ea
+Exportname im Original: OpenKH.Panacea.dll
+PE-Einstiegspunkt-RVA: 0x19a70
+Originale Exporte:
+  Ordinal 1  GetFileVersionInfoSizeW  RVA 0x3870
+  Ordinal 2  GetFileVersionInfoW      RVA 0x3810
+  Ordinal 3  MiniDumpWriteDump        RVA 0x37b0
+  Ordinal 4  VerQueryValueW           RVA 0x38b0
+
+steam-2552430(1).log, 3558768 Bytes
+SHA-256 0215c748373b007f6eeddd5bc7f095b0b7b050ec119648fdcd1a72f63b7254f6
+Identisch mit der früher hochgeladenen Datei steam-2552430.log.
+
+steam-2552430-2.log, 3480154 Bytes
+SHA-256 c486129c61113c84056f4005229f052b44f06eb1ea8d52364079306c1c2c1256
+
+Es wurden somit zwei unterschiedliche Proton-Läufe analysiert, keine drei.
+Die Header nennen experimental-11.0-20261001-arm64 und einen aarch64-Kernel.
+
+2. ERSTER LAUF – VERSION.DLL
+
+Zeile 777: VERSION.dll aus dem Spielordner wird native geladen.
+Zeile 842: LuaBackend.dll aus dem Spielordner wird native geladen.
+Zeile 849: C:\windows\system32\VERSION.dll wird zusätzlich builtin geladen.
+Zeile 36224:
+  wine: Call from 0000006FFFEDA2E0 to unimplemented function
+  VERSION.dll.VerQueryValueA, aborting
+Unmittelbar danach: EXCEPTION_WINE_STUB (0x80000100).
+
+Der Export fehlt tatsächlich in der bereitgestellten nativen Panacea-Datei.
+Das ist ein konkreter Abbruchgrund. Das erfolgreiche Laden von LuaBackend
+belegt allein noch nicht, dass sämtliche Lua-Patches korrekt laufen.
+Die zahlreichen fixme-, Vulkan-, USB- und übrigen Meldungen sind dadurch
+nicht pauschal als harmlos erklärt; für diesen Abbruch gibt es jedoch den
+eindeutigen fehlenden Funktionseintrag.
+
+3. ZWEITER LAUF – IN DINPUT8.DLL UMBENANNT
+
+Zeile 819: DINPUT8.dll aus dem Spielordner wird native geladen.
+Zeile 843: LuaBackend.dll wird native geladen.
+Zeile 847: System-DINPUT8.dll wird zusätzlich builtin geladen.
+Zeile 33783:
+  wine: Call from 0000006FFFEDA2E0 to unimplemented function
+  DINPUT8.dll.DirectInput8Create, aborting
+Unmittelbar danach: EXCEPTION_WINE_STUB (0x80000100).
+
+Bloßes Umbenennen von Panacea erstellt keinen DirectInput-Proxy. Keiner der
+vier Exporte stellt DirectInput8Create bereit. Der Befund passt daher zum
+beschriebenen Umbenennungsversuch. Der neue Build bleibt version.dll.
+
+4. ORIGINALINITIALISIERUNG
+
+Das über den GitHub-Connector ausschließlich lesend geprüfte OpenKH-dllmain.cpp
+enthält HookVersion(), HookDbgHelp() und OpenKH::Initialize() beim
+DLL_PROCESS_ATTACH. HookVersion lädt LuaBackend, sofern vorhanden, sowie
+die System-VERSION.dll und löst die drei bisherigen W-Funktionen auf.
+Die Disassemblierung der gelieferten DLL zeigt den entsprechenden Ablauf
+bei RVA 0x3360 sowie die vorhandenen W-Wrapper ab 0x3810.
+
+Der genaue C++-Quellstand, aus dem die hochgeladene Binärdatei entstanden ist,
+ist nicht allein aus diesem Vergleich bewiesen. Deshalb wird der originale
+Code vollständig beibehalten, statt Panacea aus einem möglicherweise anderen
+Upstream-Stand neu zu bauen. Der PE-Einstiegspunkt bleibt exakt derselbe.
+
+5. NEUE WEITERLEITUNGEN
+
+13 ergänzte Funktionen:
+  GetFileVersionInfoA
+  GetFileVersionInfoExA / GetFileVersionInfoExW
+  GetFileVersionInfoSizeA
+  GetFileVersionInfoSizeExA / GetFileVersionInfoSizeExW
+  VerFindFileA / VerFindFileW
+  VerInstallFileA / VerInstallFileW
+  VerLanguageNameA / VerLanguageNameW
+  VerQueryValueA
+
+Gemeinsam mit den drei vorhandenen VERSION-W-Funktionen ergibt das die 16
+in Wines VERSION-Spezifikation aufgeführten APIs. MiniDumpWriteDump bleibt
+als 17. Export bestehen. Alte Ordinale/RVAs bleiben identisch; die neuen
+Funktionen erhalten Ordinale 5 bis 17. Undokumentierte Windows-Exporte, die
+nicht in dieser Spezifikation stehen, werden nicht zusätzlich behauptet.
+
+Der neue Code ermittelt das Systemverzeichnis mit GetSystemDirectoryA,
+lädt ausschließlich den daraus gebildeten absoluten Pfad \version.dll und
+löst die jeweiligen Namen über GetProcAddress auf. Er kopiert keine
+Windows-/ARM64-System-DLL in das Spielverzeichnis. Der bereits geloggte
+originale Panacea-Loader verwendet ebenfalls diesen Systempfad-Ansatz.
+
+Die neuen AMD64-Wrapper sichern RCX/RDX/R8/R9, richten den Stack aus,
+stellen Shadow Space bereit und springen nach Wiederherstellung des Stacks
+zum echten Ziel. Argumente ab Position 5 bleiben dadurch unverändert.
+VerQueryValueA erhält den unveränderten opaken Versionsdatenblock und die
+originalen Ausgabezeiger. Es wird keine ANSI-/Unicode-Umwandlung improvisiert
+und kein Ergebnis vorgetäuscht.
+
+Ein atomar publiziertes Systemmodul-Handle und ausgerichtete Funktionscaches
+vermeiden ungeschützte Initialisierungszustände. Bei konkurrierenden ersten
+Aufrufen werden überzählige LoadLibrary-Referenzen wieder freigegeben;
+eine zusätzliche Referenz bleibt für die gecachten Zieladressen erhalten.
+LastError wird vor erfolgreicher Auflösung gesichert und vor Weiterleitung
+wiederhergestellt. Selbstauflösung bzw. fehlende Funktionen führen explizit
+zu STATUS_ENTRYPOINT_NOT_FOUND, nicht zu einem Nullzeigersprung.
+
+Der Code ist RIP-relativ und benötigt keine zusätzlichen Basisrelokationen.
+Die neue RX-Code-, RW-Cache- und R-Metadatensektion sind getrennt. Die neue
+Exception-Tabelle enthält die originalen Einträge und 14 zusätzliche gültige
+x64-Unwind-Einträge. Es wird keine RWX-Sektion angelegt.
+
+6. PRÜFUNGEN
+
+- GNU as/ld hat den neuen x64-Code assembliert und gelinkt.
+- pefile und objdump prüfen die fertige PE- und Exportstruktur.
+- Bytevergleich aller sieben Originalsektionen einschließlich Abschnittsheader.
+- Unveränderte Originalexporte, Einstiegspunkt, Imports, TLS-Verzeichnis,
+  Basisrelokationen, ImageBase und DLL-Flags.
+- PE-Checksumme, sortierte Namens-/Funktionstabellen und neue Unwind-Daten.
+- Ausführung der tatsächlich in version.dll enthaltenen neuen Maschinenbefehle
+  in einem x64-Testprozess bei einer anderen Ladeadresse (RIP-/ASLR-Prüfung).
+- Kalte und warme Funktionscaches; acht 64-Bit-Argumente einschließlich Stack-
+  Argumenten; Rückgabewert und LastError; VerQueryValueA-Ausgabezeiger und Länge.
+- 10400 Aufrufe aus 16 Threads; genau eine zusätzliche Modulreferenz verbleibt.
+- Sechs simulierte Fehlerpfade einschließlich Rekursionsschutz.
+
+pefile meldet bei Original und Ergänzung dieselben sechs Einschränkungen
+beim Parsen bereits vorhandener verketteter Unwind-Einträge. Die Meldungen
+wurden auf die verschobenen Tabellenpositionen abgeglichen. Es kamen keine
+neuen Parserwarnungen hinzu; objdump liest die Exporttabelle vollständig.
+
+GRENZE: Der Testprozess verwendet Win32-Mocks mit Microsoft-x64-ABI. Er führt
+weder Panaceas DllMain noch die realen System-VERSION-Funktionen aus. Keine
+lokale Ausführung des Spiels, von Wine/Proton oder der ARM64/FEX-Übersetzung.
+Die konkrete vollständige Mod-Kompatibilität bleibt auf dem Zielgerät zu testen.
+
+7. QUELLEN
+
+Primäre Fehlerbelege sind die gelieferten Binärdaten und die oben benannten
+Logstellen; diese Logs werden nicht als Teil des Downloadpakets dupliziert.
+
+OpenKH Panacea dllmain.cpp (lesender Abruf):
+https://github.com/OpenKH/OpenKh/blob/master/OpenKh.Research.Panacea/dllmain.cpp
+Git blob SHA: e057b5153667a1bd6838c9e8eb8a8c539a621086
+
+Wine VERSION-Exports (lesender Abruf):
+https://github.com/wine-mirror/wine/blob/master/dlls/version/version.spec
+Git blob SHA: a3a9955e02c566a6c30ba9fb2700668fbc806d45
+
+Microsoft VerQueryValueA-Schnittstelle:
+https://learn.microsoft.com/en-us/windows/win32/api/winver/nf-winver-verqueryvaluea
+
+Microsoft x64-Aufrufkonvention und Exception-Metadaten:
+https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170
+https://learn.microsoft.com/en-us/cpp/build/exception-handling-x64?view=msvc-170
+
+OpenKH-Lizenz:
+https://github.com/OpenKH/OpenKh/blob/master/LICENSE
+Git blob SHA: f433b1a53f5b830a205fd2df78e2b34974656c7b

@@ -1,0 +1,49 @@
+Panacea ARM – Installation und Rollback
+
+Windows-x64-version.dll für Kingdom Hearts HD 1.5+2.5 ReMIX unter
+Proton Experimental ARM64/FEX. Keine native ARM64-DLL.
+
+FUNKTION
+13 zusätzliche Windows-VERSION-Exporte einschließlich VerQueryValueA werden
+an die System-DLL weitergeleitet. Die vier ursprünglichen Exporte und die
+Panacea-Initialisierung bleiben erhalten. Stabile Trampoline ersetzen das
+wiederholte Entfernen und Wiedereinsetzen von Hooks.
+
+Keine laufende Datei- oder Performance-Diagnose. Kurze Status-/Fehlermeldungen
+beim Einrichten der Hooks werden weiterhin in panacea_hookfix.log geschrieben.
+Panaceas eigene Logging-Einstellungen gelten weiterhin.
+Der Riku-Cache gehört zur separaten KH2RikuSizeFix.dll und ist hier nicht enthalten.
+
+INSTALLATION
+1. Spiel, Launcher und OpenKH Mod Manager vollständig beenden.
+2. Die bisherige version.dll außerhalb des Spielordners sichern.
+3. Nur die version.dll aus dem Hauptverzeichnis dieses Pakets an die Stelle
+   der bisherigen Panacea-DLL im Spielordner kopieren.
+4. Abhängigkeiten (z. B. BASS), LuaBackend, Mods und funktionierende
+   Startoptionen beibehalten. Im DLL-Override muss version=n,b enthalten sein.
+   Nicht nach system32 oder mod/kh2/dll kopieren und nicht umbenennen.
+5. Spiel starten. Eine vorhandene KH2RikuSizeFix.dll bleibt installiert.
+
+ROLLBACK
+Spiel vollständig beenden und die eigene gesicherte version.dll wiederherstellen.
+original/version.dll ist die unveränderte Panacea-Eingabe ohne beide Fixes.
+rollback/version-v1.dll enthält nur die ergänzten Exporte, ohne Trampoline.
+Zum Einsetzen der Rollback-Datei diese wieder version.dll nennen.
+
+KOMPATIBILITÄT
+Der Build verwendet ausschließlich die mitgelieferte, per SHA-256 geprüfte
+Panacea-Version. Künftige Panacea-Versionen werden nicht automatisch gepatcht.
+Ein OpenKH-Update kann die installierte DLL überschreiben.
+Ein ausschließliches Auftreten des Exportfehlers mit Steam Beta ist nicht belegt.
+
+BUILD UND DOWNLOADS
+README.md enthält Build-Befehle und eine kurze technische Beschreibung.
+GitHub Actions baut und prüft die DLL bei Pushes, Pull Requests und manuell.
+Unter Actions -> Build and validate -> erfolgreicher Lauf -> Artifacts liegt
+Panacea-ARM-x64 mit DLL, ZIP und Prüfsummen.
+Die CI führt x64-Code mit nachgebildeten Windows-Funktionen aus; sie startet
+weder das Spiel noch Proton/FEX. Das Originalpaket und seine damaligen
+Analyse-/Testberichte sind zusätzlich im Verzeichnis packages archiviert.
+
+Nach dem Entpacken können die enthaltenen Dateien unter Linux mit
+sha256sum -c SHA256SUMS.txt geprüft werden.

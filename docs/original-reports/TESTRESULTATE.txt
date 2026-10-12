@@ -1,0 +1,15 @@
+PASS: AMD64 PE, checksum, 17 exports; original 4 names/ordinals/RVAs unchanged.
+PASS: exactly 14 verified 8-byte constructor redirects; all other original bytes, entry point, imports, relocations and TLS unchanged.
+PASS: sorted merged exception table, 14 proxy + 5 compiler-generated helper unwind records, RX/RW/R separation, no new parser warnings.
+NOTE: pefile reports the same 6 existing chained-unwind parsing warnings on both DLLs; objdump parses the tables.
+PASS: all 13 compiled forwards, cold/hot cache, 8 full-width arguments, result and LastError preservation.
+PASS: VerQueryValueA pointer/output-length ABI using an opaque-buffer mock.
+PASS: 10,400 forwarded calls across 16 threads; 16 loads, 15 duplicate references released.
+PASS: 6 error cases fail explicitly: long/failed system path, failed/self load, missing/recursive proc.
+LIMIT: mocked Win32 APIs on Linux x86-64; no Panacea DllMain, real VERSION resources, Wine or ARM64 game run.
+PASS: actual OpenFileImpl wrapper, 160,000 calls on 16 threads; entry and trampoline unchanged.
+PASS: 15-byte instruction boundary; partial-prologue unwind adjusts three saved-register offsets.
+PASS: RIP-relative operand relocated; short conditional branch expanded, both paths execute correctly.
+PASS: 7 failure paths stop explicitly (allocation, flush, registration, modified entry, return, chained/missing unwind).
+LIMIT: actual AMD64 DLL code, mocked Win32 services; no ARM64/FEX/Proton game run.
+PASS: repeat build produced identical DLL SHA256: 52bc4655fb7973229244b4586e90ce7244d391c03b5eb43369e356b205708698

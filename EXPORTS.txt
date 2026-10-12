@@ -1,0 +1,53 @@
+The Export Tables (interpreted .vpr section contents)
+
+Export Flags 			0
+Time/Date stamp 		0
+Major/Minor 			0/0
+Name 				000000000006dc9c version.dll
+Ordinal Base 			1
+Number in:
+	Export Address Table 		00000011
+	[Name Pointer/Ordinal] Table	00000011
+Table Addresses
+	Export Address Table 		000000000006ddec
+	Name Pointer Table 		000000000006de54
+	Ordinal Table 			000000000006de30
+
+Export Address Table -- Ordinal Base 1
+	[   0] +base[   1] 3870 Export RVA
+	[   1] +base[   2] 3810 Export RVA
+	[   2] +base[   3] 37b0 Export RVA
+	[   3] +base[   4] 38b0 Export RVA
+	[   4] +base[   5] 68130 Export RVA
+	[   5] +base[   6] 68180 Export RVA
+	[   6] +base[   7] 681d0 Export RVA
+	[   7] +base[   8] 68220 Export RVA
+	[   8] +base[   9] 68270 Export RVA
+	[   9] +base[  10] 682c0 Export RVA
+	[  10] +base[  11] 68310 Export RVA
+	[  11] +base[  12] 68360 Export RVA
+	[  12] +base[  13] 683b0 Export RVA
+	[  13] +base[  14] 68400 Export RVA
+	[  14] +base[  15] 68450 Export RVA
+	[  15] +base[  16] 684a0 Export RVA
+	[  16] +base[  17] 684f0 Export RVA
+
+[Ordinal/Name Pointer] Table
+	[   4] GetFileVersionInfoA
+	[   5] GetFileVersionInfoExA
+	[   6] GetFileVersionInfoExW
+	[   7] GetFileVersionInfoSizeA
+	[   8] GetFileVersionInfoSizeExA
+	[   9] GetFileVersionInfoSizeExW
+	[   0] GetFileVersionInfoSizeW
+	[   1] GetFileVersionInfoW
+	[   2] MiniDumpWriteDump
+	[  10] VerFindFileA
+	[  11] VerFindFileW
+	[  12] VerInstallFileA
+	[  13] VerInstallFileW
+	[  14] VerLanguageNameA
+	[  15] VerLanguageNameW
+	[  16] VerQueryValueA
+	[   3] VerQueryValueW
+

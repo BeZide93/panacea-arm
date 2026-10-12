@@ -1,0 +1,21 @@
+This package contains a modified copy of the user-supplied OpenKH Panacea DLL.
+OpenKH: https://github.com/OpenKH/OpenKh
+Upstream license: Apache License 2.0; see LICENSE-OpenKH.txt.
+This is not an official OpenKH release.
+
+Modification v1, 2026-10-12: compiled AMD64 forwarding code for the 13 missing
+Windows VERSION exports, export/exception tables, RX/RW/R sections and checksum.
+Modification v2, 2026-10-12: 14 verified constructor call-site redirects to a
+compiled stable-trampoline installer, additional RX section, merged exception
+table, updated image size and checksum. All remaining original section bytes,
+original entry point, imports and original four export targets are retained.
+The initializer still runs; Hook.original now points at a relocated trampoline
+and Hook.length=0 disables all existing repeated Patch/Unpatch writes.
+
+The original user-supplied binary is included under original/ for rebuilding.
+The previous export-only build is included under rollback/ for rollback.
+Original dependencies and their licenses remain applicable.
+New first-party source in src/ and tests/ is provided under Apache-2.0.
+The bundled HDE64 decoder is separately licensed; see LICENSE-HDE.txt.
+Its source came from TsudaKageyu/minhook/src/hde; only BOM removal and the
+pstdint.h -> standard stdint.h include change were applied.

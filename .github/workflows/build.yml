@@ -1,0 +1,54 @@
+name: Build and validate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-x64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils gcc
+          python3 -m pip install -r requirements.txt
+      - name: Build Windows x64 DLL
+        run: python3 src/build_hookfix.py original/version.dll
+      - name: Verify PE, exports and preserved Panacea code
+        run: python3 tests/verify.py original/version.dll
+      - name: Test forwarding ABI and concurrent calls
+        run: |
+          gcc -O2 -Wall -Wextra -Werror -pthread -I build tests/abi_harness.c -o build/abi_harness
+          build/abi_harness version.dll
+      - name: Test trampoline relocation, unwind and concurrent calls
+        run: |
+          gcc -O2 -Wall -Wextra -Werror -pthread -I build tests/hook_harness.c -o build/hook_harness
+          build/hook_harness version.dll
+      - name: Verify deterministic build
+        run: |
+          cp version.dll build/first-build.dll
+          python3 src/build_hookfix.py original/version.dll
+          cmp build/first-build.dll version.dll
+      - name: Package DLL, sources, instructions and rollback
+        run: python3 scripts/package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Panacea-ARM-x64
+          if-no-files-found: error
+          path: |
+            version.dll
+            dist/Panacea-ARM-x64.zip
+            dist/SHA256SUMS.txt
+            dist/BUILD-MANIFEST.json
+            dist/EXPORTS.txt
