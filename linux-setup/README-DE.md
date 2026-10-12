@@ -128,6 +128,28 @@ PROTON_LOG=1 WINEDLLOVERRIDES="version=n,b;dinput8=n,b;LuaBackend=n,b" %command%
 
 Weitere bei dir erforderliche Optionen beibehalten. `%command%` ist ein Steam-Platzhalter, kein Terminalbefehl. Für FPS-Messungen das zusätzliche `PROTON_LOG=1` wieder entfernen. Panacea nicht in `dinput8.dll` umbenennen. Unsere reparierte DLL bleibt `version.dll` im Spielordner; der Riku-Cache bleibt separat in `mod/kh2/dll/KH2RikuSizeFix.dll`.
 
+## OpenKH öffnet sich kurz und schließt wieder
+
+**Bestätigter Workaround in deinem DroidDeck-/Proton-Experimental-ARM64-Aufbau:** WineD3D für den OpenKH Mod Manager verwenden. In Steam unter **OpenKH → Eigenschaften → Startoptionen** eintragen:
+
+```text
+PROTON_USE_WINED3D=1 %command%
+```
+
+Mit zusätzlichem Diagnose-Log:
+
+```text
+PROTON_LOG=1 PROTON_USE_WINED3D=1 %command%
+```
+
+Das gilt **nur für den eigenen OpenKH-Steam-Eintrag**. Die funktionierenden Startoptionen von Kingdom Hearts unverändert lassen. Weitere benötigte Optionen beibehalten und `%command%` nur einmal verwenden. Zum Zurücknehmen `PROTON_USE_WINED3D=1` wieder entfernen.
+
+Im fehlgeschlagenen Lauf wurden x64 .NET Core und Windows Desktop **8.0.30** bereits aus `C:\Program Files\dotnet\x64\…` geladen. Anschließend nutzte WPF Direct3D 9 über DXVK; am Ende des Logs standen eine abgebrochene X-Verbindung und Speicherzugriffsfehler in `vkCreateGraphicsPipelines` und `vkQueuePresentKHR`. WineD3D verwendet für Direct3D 9 OpenGL statt des DXVK-/Vulkan-Pfads. Damit startete OpenKH bei dir erfolgreich. Welche Grafikkomponente den ursprünglichen Fehler auslöst, ist noch nicht isoliert; die Option ist kein pauschales Erfordernis für alle ARM64-Systeme.
+
+Nicht allein anhand der Verzeichnisliste des ursprünglichen Prüfskripts .NET nachinstallieren: Es prüft derzeit `Program Files/dotnet` und `Program Files (x86)/dotnet`, erfasst aber nicht die zusätzliche Struktur `Program Files/dotnet/x64` aus diesem Lauf.
+
+Quelle: [Valve: Proton-Laufzeitoptionen](https://github.com/ValveSoftware/Proton#runtime-config-options).
+
 ## Der damalige UCRT-Rollback
 
 Zurückgesetzt wurden genau `drive_c/windows/system32/ucrtbase.dll` und `drive_c/windows/syswow64/ucrtbase.dll`, jeweils aus der zugehörigen alten Prefix-Sicherung. Das ist **kein normaler Installationsschritt** und wird auf dem jetzt funktionierenden System nicht wiederholt. Eine Vollwiederherstellung würde zusätzlich Registry, Einstellungen und mögliche spätere Spielstände zurücksetzen; vorhandene Backups deshalb nicht blind über den aktuellen Prefix kopieren.

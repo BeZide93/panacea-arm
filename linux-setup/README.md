@@ -121,6 +121,28 @@ Keep any additional options your environment requires, and use `%command%` only 
 
 The repaired `version.dll` belongs in the game folder. Do not rename Panacea to `dinput8.dll`; keep a real `dinput8.dll` supplied by another mod if needed. The separate Riku fix remains in `mod/kh2/dll/KH2RikuSizeFix.dll`. `04-launch-options.sh` also prints a `version=b` diagnostic option that disables Panacea, but does not necessarily disable other mod loaders.
 
+## OpenKH opens briefly and closes
+
+**Confirmed workaround in the tested DroidDeck / Proton Experimental ARM64 setup:** use WineD3D for the OpenKH Mod Manager. In Steam, open **OpenKH → Properties → Launch Options** and use:
+
+```text
+PROTON_USE_WINED3D=1 %command%
+```
+
+To keep a diagnostic log as well:
+
+```text
+PROTON_LOG=1 PROTON_USE_WINED3D=1 %command%
+```
+
+Apply this to **OpenKH's own Steam shortcut only**. Keep Kingdom Hearts' working launch options unchanged. Preserve any other required options and include `%command%` only once. To undo the workaround, remove `PROTON_USE_WINED3D=1`.
+
+The failing run had already loaded x64 .NET Core and Windows Desktop **8.0.30** from `C:\Program Files\dotnet\x64\…`. WPF then used Direct3D 9 through DXVK; the log ended with a broken X connection and access violations in `vkCreateGraphicsPipelines` and `vkQueuePresentKHR`. WineD3D uses OpenGL instead of the DXVK/Vulkan path for Direct3D 9, and OpenKH started successfully with this option. The exact underlying graphics component responsible has not been isolated; this is not evidence that every ARM64 installation needs the workaround.
+
+Do not reinstall .NET based only on the original check script's directory listing: it currently checks `Program Files/dotnet` and `Program Files (x86)/dotnet`, but does not inspect the additional `Program Files/dotnet/x64` layout found in this run.
+
+Reference: [Valve's Proton runtime options](https://github.com/ValveSoftware/Proton#runtime-config-options).
+
 ## Recorded UCRT failure and recovery
 
 Installing `ucrtbase2019` caused `c000007b` / `c0000135` errors in the original setup. The previous `ucrtbase.dll` files in **both** `drive_c/windows/system32` and `drive_c/windows/syswow64` were restored from that prefix's backup. Wine then returned `WINE_TEST_OK` with exit code 0.

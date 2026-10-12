@@ -26,6 +26,8 @@ The [Linux setup guide (English)](linux-setup/README.md) and [deutsche Anleitung
 
 The kit reproduces the recorded DroidDeck setup, including .NET 8.0.12. It uses your existing ARM64 Proton build and rejects `ucrtbase2019`, which broke that setup. Check `config.env` before installing anything; an already working installation does not need its dependencies reinstalled.
 
+**OpenKH opens briefly and closes on ARM64?** Setting `PROTON_USE_WINED3D=1 %command%` in the **OpenKH shortcut's** Steam launch options resolved this in the tested DroidDeck setup. Keep Kingdom Hearts' launch options unchanged. See the [English workaround](linux-setup/README.md#openkh-opens-briefly-and-closes) / [deutschen Hinweis](linux-setup/README-DE.md#openkh-öffnet-sich-kurz-und-schließt-wieder).
+
 ## Build and compatibility
 
 Build on Linux x86-64 with Python 3.12, GNU binutils and GCC:
