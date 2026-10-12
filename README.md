@@ -20,6 +20,12 @@ To roll back, close the game and restore your backup. `original/version.dll` is 
 
 The [original package](packages/OpenKH-Panacea-Proton-x64-Paket.zip) includes the DLL, source, technical reports and rollback files. Freshly built packages are available under **Actions → Build and validate → Artifacts → Panacea-ARM-x64**. See [ANLEITUNG.txt](ANLEITUNG.txt) for German instructions.
 
+## Linux ARM64 dependencies
+
+The [Linux setup guide (English)](linux-setup/README.md) and [deutsche Anleitung](linux-setup/README-DE.md) cover prefix selection, runtime installation, backups, checks and Steam launch options. Download the [complete setup kit](https://github.com/BeZide93/panacea-arm/raw/refs/heads/main/packages/Panacea-ARM-Linux-Setup.zip), or use the scripts in [`linux-setup`](linux-setup).
+
+The kit reproduces the recorded DroidDeck setup, including .NET 8.0.12. It uses your existing ARM64 Proton build and rejects `ucrtbase2019`, which broke that setup. Check `config.env` before installing anything; an already working installation does not need its dependencies reinstalled.
+
 ## Build and compatibility
 
 Build on Linux x86-64 with Python 3.12, GNU binutils and GCC:
