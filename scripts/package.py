@@ -18,7 +18,7 @@ def main():
     dll = (ROOT / 'version.dll').read_bytes()
     if hashlib.sha256(dll).hexdigest() != hook['sha256']:
         raise SystemExit('Build manifest does not match version.dll')
-    manifest = {'version': 'HookFix v2', 'version_proxy': proxy, 'hookfix': hook}
+    manifest = {'version': 'HookFix v2', 'variant': 'diagnose', 'custom_logging': True, 'version_proxy': proxy, 'hookfix': hook}
     files = {
         name: (ROOT / name).read_bytes() for name in [
             'version.dll', 'README.md', 'ANLEITUNG.txt', 'NOTICE.txt', 'LICENSE',
@@ -40,7 +40,7 @@ def main():
     ).encode()
     dist = ROOT / 'dist'
     dist.mkdir(exist_ok=True)
-    archive = dist / 'Panacea-ARM-x64.zip'
+    archive = dist / 'Panacea-ARM-x64-Diagnose.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for name, data in sorted(files.items()):
             entry = zipfile.ZipInfo(name, (2026, 10, 12, 0, 0, 0))

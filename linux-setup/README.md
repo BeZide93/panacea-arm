@@ -119,7 +119,7 @@ PROTON_LOG=1 WINEDLLOVERRIDES="version=n,b;dinput8=n,b;LuaBackend=n,b" %command%
 
 Keep any additional options your environment requires, and use `%command%` only once. These are Steam launch options, not shell commands. Remove the additional `PROTON_LOG=1` for FPS comparisons.
 
-The repaired `version.dll` belongs in the game folder. Do not rename Panacea to `dinput8.dll`; keep a real `dinput8.dll` supplied by another mod if needed. The separate Riku fix remains in `mod/kh2/dll/KH2RikuSizeFix.dll`. `04-launch-options.sh` also prints a `version=b` diagnostic option that disables Panacea, but does not necessarily disable other mod loaders.
+The repaired `version.dll` belongs in the game folder. Do not rename Panacea to `dinput8.dll`; keep a real `dinput8.dll` supplied by another mod if needed. The general KH2 Asset Size Cache remains in `mod/kh2/dll/KH2AssetSizeCache.dll`. `04-launch-options.sh` also prints a `version=b` diagnostic option that disables Panacea, but does not necessarily disable other mod loaders.
 
 ## OpenKH opens briefly and closes
 
@@ -158,7 +158,7 @@ Wine and wineserver are explicitly selected from `files/bin-arm64`. Library sear
 ## References
 
 - [Panacea compatibility DLL](https://github.com/BeZide93/panacea-arm)
-- [Riku performance fix](https://github.com/BeZide93/kh2-riku-perf-fix)
+- [KH2 Asset Size Cache](https://github.com/BeZide93/kh2-asset-size-cache)
 - [Pinned Winetricks source and package definitions](https://github.com/Winetricks/winetricks/blob/f3890f670867b5ffbc3938726db45c0f7d16c8ba/src/winetricks)
 - [Valve Proton 11](https://github.com/ValveSoftware/Proton/blob/proton_11.0/proton)
 - [DroidDeck](https://github.com/Droid-Deck/DroidDeck)

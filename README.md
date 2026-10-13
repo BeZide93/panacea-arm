@@ -1,4 +1,4 @@
-# Panacea ARM compatibility fixes
+# Panacea ARM compatibility fixes — diagnostic build
 
 Windows **x64** `version.dll` for Kingdom Hearts HD 1.5+2.5 ReMIX under Proton Experimental ARM64/FEX. This is a modified OpenKH Panacea build, not a native ARM64 DLL or an official OpenKH release.
 
@@ -6,19 +6,30 @@ Windows **x64** `version.dll` for Kingdom Hearts HD 1.5+2.5 ReMIX under Proton E
 
 - Adds 13 missing Windows VERSION exports, including `VerQueryValueA`, and forwards them to the system DLL. All four original exports and Panacea initialization are preserved.
 - Uses permanent trampolines to call original game functions without repeatedly removing and reinstalling hooks.
-- Contains no per-file or continuous performance tracing. Brief hook installation/error messages still go to `panacea_hookfix.log`; Panacea's own logging settings remain applicable.
+- This `diagnose` build adds hook installation/error messages and aggregated asset-call diagnostics. Panacea's original logging, settings and crash handling remain unchanged.
 
-The separate [Riku performance fix](https://github.com/BeZide93/kh2-riku-perf-fix) is optional and remains a separate mod DLL.
+The general [KH2 Asset Size Cache](https://github.com/BeZide93/kh2-asset-size-cache) is an optional, separate mod. Install its `KH2AssetSizeCache.dll` in `mod/kh2/dll`; it is not bundled into this `version.dll`.
 
 ## Install
 
 1. Close the game, launcher and OpenKH Mod Manager. Back up your current `version.dll` outside the game folder.
-2. Download the root [version.dll](https://github.com/BeZide93/panacea-arm/raw/refs/heads/main/version.dll) and replace Panacea's `version.dll` in the game folder. Keep your existing Panacea dependencies and mods.
+2. Download the root [version.dll](https://github.com/BeZide93/panacea-arm/raw/refs/heads/diagnose/version.dll) and replace Panacea's `version.dll` in the game folder. Keep your existing Panacea dependencies and mods.
 3. Keep your working launch options, including `version=n,b` in `WINEDLLOVERRIDES`. Do not rename this DLL to `dinput8.dll` or put it in `mod/kh2/dll`.
 
 To roll back, close the game and restore your backup. `original/version.dll` is the unmodified input; `rollback/version-v1.dll` retains only the export fix, without the trampoline fix.
 
-The [original package](packages/OpenKH-Panacea-Proton-x64-Paket.zip) includes the DLL, source, technical reports and rollback files. Freshly built packages are available under **Actions → Build and validate → Artifacts → Panacea-ARM-x64**. See [ANLEITUNG.txt](ANLEITUNG.txt) for German instructions.
+The [current package](packages/Panacea-ARM-x64-Diagnose.zip) includes the DLL, source, instructions and rollback files. The [original package](packages/OpenKH-Panacea-Proton-x64-Paket.zip) is a historical archive and still contains the earlier logging build. Freshly built packages are available under **Actions → Build and validate → Artifacts → Panacea-ARM-x64-Diagnose**. See [ANLEITUNG.txt](ANLEITUNG.txt) for German instructions.
+
+## Logging variants
+
+- [`main`](https://github.com/BeZide93/panacea-arm/tree/main): normal play, without our added logs or tracing worker.
+- [`diagnose`](https://github.com/BeZide93/panacea-arm/tree/diagnose): the same compatibility fixes plus our hook and asset-call diagnostics. This branch builds its own DLL and CI artifact.
+
+Panacea's own logging settings remain applicable in both variants. Existing log files are not deleted when changing DLLs. Other mods manage their own logs independently.
+
+For a diagnostic run, close the game, archive or delete `panacea_hookfix.log` and `panacea_riku_perf.log` in its working directory, then install this branch's `version.dll`. Reproduce the issue, wait at least five seconds and close the game. Send both logs together with the steps and approximate time of the issue. Restore the `main` DLL for normal play.
+
+`panacea_hookfix.log` records hook setup and failures. `panacea_riku_perf.log` is the historical filename for general asset-call measurements, not a dependency on a Riku-specific mod. A worker appends five-second buckets for `LoadFile`, `LoadFileWithSize`, `LoadFileWithMalloc`, `OpenFileImpl` and `GetFileSize`. Measurements include paths, counts and timings; nested durations must not be added together. The last partial bucket can be absent. Logs append across runs, and tracing itself adds overhead.
 
 ## Linux ARM64 dependencies
 
@@ -40,6 +51,8 @@ gcc -O2 -Wall -Wextra -Werror -pthread -I build tests/abi_harness.c -o build/abi
 build/abi_harness version.dll
 gcc -O2 -Wall -Wextra -Werror -pthread -I build tests/hook_harness.c -o build/hook_harness
 build/hook_harness version.dll
+gcc -O2 -Wall -Wextra -Werror -pthread -I build tests/perf_harness.c -o build/perf_harness
+build/perf_harness version.dll
 python3 scripts/package.py
 ```
 

@@ -9,7 +9,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 CONSTRUCTORS=[0xc355,0xc4bc,0xc5fe,0xc73d,0xc87f,0xc9ba,0xcaf9,
               0xcc3f,0xcd85,0xcecb,0xd011,0xd156,0xd2bd,0x1223d]
 IMPORTS=['GetModuleHandleW','GetProcAddress','VirtualProtect','RtlLookupFunctionEntry',
-         'ExitProcess','CreateFileW','WriteFile','CloseHandle']
+         'ExitProcess','CreateFileW','WriteFile','CloseHandle','GetCurrentThreadId','GetLastError','SetLastError','QueryPerformanceCounter']
 def run(*args):return subprocess.check_output(list(map(str,args)),text=True)
 def main():
     work=ROOT/'build';work.mkdir(exist_ok=True)
@@ -24,16 +24,24 @@ def main():
     iat={i.name.decode():i.address-p.OPTIONAL_HEADER.ImageBase for d in p.DIRECTORY_ENTRY_IMPORT
          if d.dll.lower()==b'kernel32.dll' for i in d.imports if i.name}
     script=''.join(f'__imp_{n} = 0x{iat[n]:x};\n' for n in IMPORTS)
+    original_functions={'panacea_load':0xfeb0,'panacea_load_size':0x103c0,
+                        'panacea_load_malloc':0x10900,'panacea_open':0xfe20,'panacea_size':0x10e60}
+    begins={e.struct.BeginAddress for e in p.DIRECTORY_ENTRY_EXCEPTION}
+    assert all(v in begins for v in original_functions.values())
+    assert p.get_data(0xff5b,7)==bytes.fromhex('803d42fe040000')
+    assert p.get_data(0x10248,6)==bytes.fromhex('380556fb0400')
+    script+=''.join(f'{n} = 0x{v:x};\n' for n,v in original_functions.items())
     script+=f'''SECTIONS {{
     .text 0x{rva:x} : {{ *(.text) *(.rdata*) *(.data) *(.xdata*)
         . = ALIGN(4); helper_pdata_begin = .; *(.pdata*) helper_pdata_end = .; }}
+    .perfdata 0x{rva+0x10000:x} : {{ *(.perfdata) }}
     /DISCARD/ : {{ *(.debug*) *(.llvm*) *(.drectve) }}
     }}\n'''
     (work/'hookfix.ld').write_text(script)
     run('ld','-m','i386pep','--image-base','0','--entry','hook_install','--disable-reloc-section',
         '--no-insert-timestamp','-T',work/'hookfix.ld','-o',work/'hookfix.exe',work/'hookfix.o',work/'hde64.o')
     h=pefile.PE(str(work/'hookfix.exe'))
-    assert len(h.sections)==1 and h.sections[0].VirtualAddress==rva
+    assert len(h.sections)==2 and h.sections[0].VirtualAddress==rva
     assert not h.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size
     # All object fixups must be PC-relative or image-relative, never absolute VA.
     for obj in ['hookfix.o','hde64.o']:
@@ -43,6 +51,8 @@ def main():
     for line in run('nm','-n',work/'hookfix.exe').splitlines():
         parts=line.split()
         if len(parts)==3:syms[parts[2]]=int(parts[0],16)
+    assert syms['perf_state']==rva+0x10000
+    assert h.sections[1].Misc_VirtualSize==8 and not any(h.sections[1].get_data())
     payload=bytearray(h.sections[0].get_data()[:h.sections[0].Misc_VirtualSize])
     pd=p.OPTIONAL_HEADER.DATA_DIRECTORY[3];oldpd=p.get_data(pd.VirtualAddress,pd.Size)
     hp=h.get_data(syms['helper_pdata_begin'],syms['helper_pdata_end']-syms['helper_pdata_begin'])
@@ -61,14 +71,19 @@ def main():
         image[off-3:off+5]=after
         patches.append({'rva':hex(call-3),'before':before.hex(),'after':after.hex()})
     header=p.sections[-1].get_file_offset()+40
-    assert header+40<=p.OPTIONAL_HEADER.SizeOfHeaders and not any(image[header:header+40])
+    assert header+80<=p.OPTIONAL_HEADER.SizeOfHeaders and not any(image[header:header+80])
     raw=align(len(image),p.OPTIONAL_HEADER.FileAlignment);rawsize=align(len(payload),p.OPTIONAL_HEADER.FileAlignment)
     image.extend(b'\0'*(raw-len(image)));image.extend(payload);image.extend(b'\0'*(rawsize-len(payload)))
     struct.pack_into('<8sIIIIIIHHI',image,header,b'.hfx',len(payload),rva,rawsize,raw,0,0,0,0,0x60000020)
+    assert len(payload)<0x10000
+    state_raw=len(image)
+    image.extend(b'\0'*p.OPTIONAL_HEADER.FileAlignment)
+    struct.pack_into('<8sIIIIIIHHI',image,header+40,b'.hfd',8,rva+0x10000,p.OPTIONAL_HEADER.FileAlignment,state_raw,0,0,0,0,0xc0000040)
     def put(obj,field,value,fmt='<I'):struct.pack_into(fmt,image,obj.get_field_absolute_offset(field),value)
-    put(p.FILE_HEADER,'NumberOfSections',len(p.sections)+1,'<H')
-    put(p.OPTIONAL_HEADER,'SizeOfImage',align(rva+len(payload),0x1000))
+    put(p.FILE_HEADER,'NumberOfSections',len(p.sections)+2,'<H')
+    put(p.OPTIONAL_HEADER,'SizeOfImage',rva+0x11000)
     put(p.OPTIONAL_HEADER,'SizeOfCode',p.OPTIONAL_HEADER.SizeOfCode+rawsize)
+    put(p.OPTIONAL_HEADER,'SizeOfInitializedData',p.OPTIONAL_HEADER.SizeOfInitializedData+p.OPTIONAL_HEADER.FileAlignment)
     put(pd,'VirtualAddress',pd_rva);put(pd,'Size',len(entries)*12)
     put(p.OPTIONAL_HEADER,'CheckSum',0)
     put(p.OPTIONAL_HEADER,'CheckSum',pefile.PE(data=bytes(image)).generate_checksum())

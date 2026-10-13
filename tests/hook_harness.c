@@ -23,6 +23,9 @@ static RF rf;
 static int has_unwind,fail_mode,flushes,registrations;
 static u8 original_unwind[128];
 static char lastlog[200];
+static u32 MS last_error_(void){return 123;}
+static void MS set_error_(u32 x){assert(x==123);}
+static u32 MS tid_(void){return 1;}
 static void *MS module(const uint16_t *name){assert(name[0]=='k');return (void *)1;}
 static void *MS alloc_(void *want,size_t size,u32 mode,u32 prot){
     assert(size==4096&&mode==0x3000&&prot==4);if(fail_mode==1)return NULL;
@@ -43,6 +46,7 @@ static void *MS proc(void *mod,const char *name){
     if(!strcmp(name,"VirtualAlloc"))return alloc_;
     if(!strcmp(name,"FlushInstructionCache"))return flush_;
     if(!strcmp(name,"RtlAddFunctionTable"))return add_;
+    if(!strcmp(name,"QueryPerformanceFrequency")||!strcmp(name,"Sleep")||!strcmp(name,"CreateThread"))return NULL;
     abort();
 }
 static int MS protect(void *p,size_t n,u32 prot,u32 *old){
@@ -137,7 +141,7 @@ int main(int argc,char **argv){
     image=mmap(NULL,IMAGE_SIZE,PROT_READ|PROT_WRITE,MAP_PRIVATE|MAP_ANONYMOUS,-1,0);assert(image!=MAP_FAILED);
     for(size_t i=0;i<sizeof(chunks)/sizeof(*chunks);i++){assert(!fseek(f,chunks[i].offset,SEEK_SET));assert(fread(image+chunks[i].rva,1,chunks[i].size,f)==chunks[i].size);}fclose(f);
 #define BIND(n,fn) *(void **)(image+IAT_##n)=(void *)(fn)
-    BIND(GetModuleHandleW,module);BIND(GetProcAddress,proc);BIND(VirtualProtect,protect);
+    BIND(GetCurrentThreadId,tid_);BIND(GetLastError,last_error_);BIND(SetLastError,set_error_);BIND(GetModuleHandleW,module);BIND(GetProcAddress,proc);BIND(VirtualProtect,protect);
     BIND(RtlLookupFunctionEntry,lookup);BIND(ExitProcess,exit_);BIND(CreateFileW,file_);BIND(WriteFile,write_);BIND(CloseHandle,close_);
     for(size_t i=0;i<sizeof(chunks)/sizeof(*chunks);i++){
         int prot=PROT_READ;if(chunks[i].flags&0x80000000)prot|=PROT_WRITE;if(chunks[i].flags&0x20000000)prot|=PROT_EXEC;

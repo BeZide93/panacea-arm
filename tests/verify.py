@@ -78,10 +78,13 @@ header += 'static const struct export_test entries[] = {'+','.join('{"'+n+'",'+s
 header += f'#define DATA_RVA {next(s.VirtualAddress for s in b.sections if s.Name.startswith(b".vpd"))}\n'
 header += f'#define QUERY_RVA {exports["VerQueryValueA"][1]}\n'
 header += f'#define HOOK_INSTALL_RVA {hook["symbols"]["hook_install"]}\n'
-for name in ['GetModuleHandleW','VirtualProtect','RtlLookupFunctionEntry','CreateFileW','WriteFile','CloseHandle']:
+for name in ['GetModuleHandleW','VirtualProtect','RtlLookupFunctionEntry','CreateFileW','WriteFile','CloseHandle','GetCurrentThreadId','GetLastError','SetLastError','QueryPerformanceCounter']:
     header += f'#define IAT_{name} {hook["iats"][name]}\n'
+for name in ['trace_load','trace_load_size','trace_load_malloc','trace_open','trace_size','perf_record','perf_flush','perf_init','trace_attach']:
+    header += f'#define RVA_{name} {hook["symbols"][name]}\n'
+header += f'#define PERF_STATE_RVA {hook["symbols"]["perf_state"]}\n'
 (root/'build/harness_generated.h').write_text(header)
 print('PASS: AMD64 PE, checksum, 17 exports; original 4 names/ordinals/RVAs unchanged.')
 print('PASS: exactly 14 verified 8-byte constructor redirects; all other original bytes, entry point, imports, relocations and TLS unchanged.')
-print('PASS: sorted merged exception table, 14 proxy + 5 compiler-generated helper unwind records, RX/RW/R separation, no new parser warnings.')
+print('PASS: sorted merged exception table, 14 proxy + compiler-generated helper unwind records, RX/RW/R separation, no new parser warnings.')
 print('NOTE: pefile reports the same 6 existing chained-unwind parsing warnings on both DLLs; objdump parses the tables.')

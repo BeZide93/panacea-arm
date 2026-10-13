@@ -44,6 +44,7 @@ static unsigned imm_size(hde64s *h) {
     if(h->flags&F_IMM16)return 2;if(h->flags&F_IMM8)return 1;return 0;
 }
 static void absjump(u8 *p,const void *to) {p[0]=0xff;p[1]=0x25;memset(p+2,0,4);*(u64 *)(p+6)=(u64)to;}
+#include "perftrace.h"
 /* Each relocated instruction retains its length except short Jcc, which is
  * expanded to 0F 8x rel32. Internal branch targets are remapped in pass 2. */
 typedef struct {hde64s h;u8 old,newpos,nlen;} Insn;
@@ -105,6 +106,7 @@ void *hook_install(Hook *hook) {
     u8 *target=hook->original;
     if(hook->length!=14 || !target || !hook->replacement)fail("FAIL invalid Hook layout",(u64)target);
     for(unsigned i=0;i<14;i++)if(target[i]!=hook->saved[i])fail("FAIL entry changed before install",(u64)target);
+    trace_attach(hook);
     void *k=GetModuleHandleW(kernel_name);
     Alloc alloc=(Alloc)GetProcAddress(k,"VirtualAlloc");
     Flush flush=(Flush)GetProcAddress(k,"FlushInstructionCache");

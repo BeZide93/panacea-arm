@@ -24,7 +24,11 @@ jobs:
           sudo apt-get install -y binutils gcc
           python3 -m pip install -r requirements.txt
       - name: Build Windows x64 DLL
-        run: python3 src/build_hookfix.py original/version.dll
+        run: |
+          cp version.dll build-committed.dll
+          python3 src/build_hookfix.py original/version.dll
+          cmp build-committed.dll version.dll
+          rm build-committed.dll
       - name: Verify PE, exports and preserved Panacea code
         run: python3 tests/verify.py original/version.dll
       - name: Test forwarding ABI and concurrent calls
@@ -35,6 +39,10 @@ jobs:
         run: |
           gcc -O2 -Wall -Wextra -Werror -pthread -I build tests/hook_harness.c -o build/hook_harness
           build/hook_harness version.dll
+      - name: Test diagnostic wrappers, aggregation and failure recovery
+        run: |
+          gcc -O2 -Wall -Wextra -Werror -pthread -I build tests/perf_harness.c -o build/perf_harness
+          build/perf_harness version.dll
       - name: Verify deterministic build
         run: |
           cp version.dll build/first-build.dll
@@ -49,11 +57,11 @@ jobs:
           cmp dist/Panacea-ARM-Linux-Setup.zip packages/Panacea-ARM-Linux-Setup.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: Panacea-ARM-x64
+          name: Panacea-ARM-x64-Diagnose
           if-no-files-found: error
           path: |
             version.dll
-            dist/Panacea-ARM-x64.zip
+            dist/Panacea-ARM-x64-Diagnose.zip
             dist/Panacea-ARM-Linux-Setup.zip
             dist/Panacea-ARM-Linux-Setup.sha256
             dist/SHA256SUMS.txt
