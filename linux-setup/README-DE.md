@@ -126,7 +126,7 @@ Mit Proton-Log:
 PROTON_LOG=1 WINEDLLOVERRIDES="version=n,b;dinput8=n,b;LuaBackend=n,b" %command%
 ```
 
-Weitere bei dir erforderliche Optionen beibehalten. `%command%` ist ein Steam-Platzhalter, kein Terminalbefehl. Für FPS-Messungen das zusätzliche `PROTON_LOG=1` wieder entfernen. Panacea nicht in `dinput8.dll` umbenennen. Unsere reparierte DLL bleibt `version.dll` im Spielordner; der Riku-Cache bleibt separat in `mod/kh2/dll/KH2RikuSizeFix.dll`.
+Weitere bei dir erforderliche Optionen beibehalten. `%command%` ist ein Steam-Platzhalter, kein Terminalbefehl. Für FPS-Messungen das zusätzliche `PROTON_LOG=1` wieder entfernen. Panacea nicht in `dinput8.dll` umbenennen. Unsere reparierte DLL bleibt `version.dll` im Spielordner; der allgemeine KH2 Asset Size Cache bleibt separat in `mod/kh2/dll/KH2AssetSizeCache.dll`.
 
 ## OpenKH öffnet sich kurz und schließt wieder
 
@@ -163,7 +163,7 @@ Die Library-Pfade in `common.sh` folgen dem aktuellen Proton-11-Code; ihre exakt
 ## Quellen und Projekte
 
 - [Unser Panacea-Paket](https://github.com/BeZide93/panacea-arm)
-- [Riku-Performance-Fix](https://github.com/BeZide93/kh2-riku-perf-fix)
+- [KH2 Asset Size Cache](https://github.com/BeZide93/kh2-asset-size-cache)
 - [Winetricks: geprüfter Quellstand und Downloaddefinitionen](https://github.com/Winetricks/winetricks/blob/f3890f670867b5ffbc3938726db45c0f7d16c8ba/src/winetricks)
 - [Valve Proton 11: ARM64-Wine-Auswahl und init_wine](https://github.com/ValveSoftware/Proton/blob/proton_11.0/proton)
 - [DroidDeck](https://github.com/Droid-Deck/DroidDeck)

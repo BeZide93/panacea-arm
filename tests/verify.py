@@ -83,5 +83,15 @@ for name in ['GetModuleHandleW','VirtualProtect','RtlLookupFunctionEntry','Creat
 (root/'build/harness_generated.h').write_text(header)
 print('PASS: AMD64 PE, checksum, 17 exports; original 4 names/ordinals/RVAs unchanged.')
 print('PASS: exactly 14 verified 8-byte constructor redirects; all other original bytes, entry point, imports, relocations and TLS unchanged.')
-print('PASS: sorted merged exception table, 14 proxy + 5 compiler-generated helper unwind records, RX/RW/R separation, no new parser warnings.')
+print('PASS: sorted merged exception table, 14 proxy + compiler-generated helper unwind records, RX/RW/R separation, no new parser warnings.')
 print('NOTE: pefile reports the same 6 existing chained-unwind parsing warnings on both DLLs; objdump parses the tables.')
+
+# Original Panacea may still log; only our appended helper must be silent.
+helper = next(s.get_data() for s in b.sections if s.Name.startswith(b'.hfx'))
+assert 'panacea_hookfix.log'.encode('utf-16le') not in helper
+assert 'panacea_riku_perf.log'.encode('utf-16le') not in helper
+assert 'perf_state' not in hook['symbols']
+relocs = subprocess.check_output(['objdump', '-r', str(root/'build/hookfix.o')], text=True)
+for api in ['CreateFileW', 'WriteFile', 'CloseHandle', 'QueryPerformanceCounter']:
+    assert '__imp_' + api not in relocs
+print('PASS: added hook engine has no log-file imports or performance collector; original Panacea code preserved.')

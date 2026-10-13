@@ -24,7 +24,11 @@ jobs:
           sudo apt-get install -y binutils gcc
           python3 -m pip install -r requirements.txt
       - name: Build Windows x64 DLL
-        run: python3 src/build_hookfix.py original/version.dll
+        run: |
+          cp version.dll build-committed.dll
+          python3 src/build_hookfix.py original/version.dll
+          cmp build-committed.dll version.dll
+          rm build-committed.dll
       - name: Verify PE, exports and preserved Panacea code
         run: python3 tests/verify.py original/version.dll
       - name: Test forwarding ABI and concurrent calls

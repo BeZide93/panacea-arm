@@ -9,7 +9,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 CONSTRUCTORS=[0xc355,0xc4bc,0xc5fe,0xc73d,0xc87f,0xc9ba,0xcaf9,
               0xcc3f,0xcd85,0xcecb,0xd011,0xd156,0xd2bd,0x1223d]
 IMPORTS=['GetModuleHandleW','GetProcAddress','VirtualProtect','RtlLookupFunctionEntry',
-         'ExitProcess','CreateFileW','WriteFile','CloseHandle']
+         'ExitProcess']
 def run(*args):return subprocess.check_output(list(map(str,args)),text=True)
 def main():
     work=ROOT/'build';work.mkdir(exist_ok=True)

@@ -18,7 +18,7 @@ def main():
     dll = (ROOT / 'version.dll').read_bytes()
     if hashlib.sha256(dll).hexdigest() != hook['sha256']:
         raise SystemExit('Build manifest does not match version.dll')
-    manifest = {'version': 'HookFix v2', 'version_proxy': proxy, 'hookfix': hook}
+    manifest = {'version': 'HookFix v2', 'variant': 'main', 'custom_logging': False, 'version_proxy': proxy, 'hookfix': hook}
     files = {
         name: (ROOT / name).read_bytes() for name in [
             'version.dll', 'README.md', 'ANLEITUNG.txt', 'NOTICE.txt', 'LICENSE',

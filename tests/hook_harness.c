@@ -53,12 +53,12 @@ static int MS protect(void *p,size_t n,u32 prot,u32 *old){
 static RF *MS lookup(u64 pc,u64 *base,void *history){
     assert(pc==(u64)game&&!history);*base=(u64)game;return has_unwind?&rf:NULL;
 }
-static void MS exit_(u32 code){if(!fail_mode)fprintf(stderr,"UNEXPECTED: %s",lastlog);assert(code==0xe04b4802);assert(!strncmp(lastlog,"FAIL",4));_Exit(73);}
+static void MS exit_(u32 code){if(!fail_mode)fprintf(stderr,"UNEXPECTED: %s",lastlog);assert(code==0xe04b4802);assert(!lastlog[0]);_Exit(73);}
 static void *MS file_(const uint16_t *n,u32 access,u32 share,void *s,u32 disposition,u32 attrs,void *t){
-    assert(n[0]=='p'&&access==4&&share==3&&!s&&disposition==4&&attrs==0x80&&!t);return (void *)2;
+    assert(!"quiet hook engine must not open a log file");assert(n[0]=='p'&&access==4&&share==3&&!s&&disposition==4&&attrs==0x80&&!t);return (void *)2;
 }
 static int MS write_(void *h,const void *buf,u32 len,u32 *out,void *over){
-    assert(h==(void *)2&&!over&&len<sizeof(lastlog));memcpy(lastlog,buf,len);lastlog[len]=0;*out=len;return 1;
+    assert(!"quiet hook engine must not write logs");assert(h==(void *)2&&!over&&len<sizeof(lastlog));memcpy(lastlog,buf,len);lastlog[len]=0;*out=len;return 1;
 }
 static int MS close_(void *h){assert(h==(void *)2);return 1;}
 static u64 MS replacement(u64 a,u64 b,u64 c,u64 d){return ((Fn)current.original)(a,b,c,d)+1;}
@@ -75,7 +75,7 @@ static void install(void){
     assert(!mprotect(game,4096,PROT_READ|PROT_EXEC));
     ((void *(MS *)(Hook *))(image+HOOK_INSTALL_RVA))(&current);
     assert(current.original==tramp&&current.length==0&&flushes==2&&registrations==1);
-    assert(!memcmp(game,current.patch,14));assert(!strncmp(lastlog,"HookFix v2 installed",20));
+    assert(!memcmp(game,current.patch,14));assert(!lastlog[0]);
 }
 static void done(void){free(current.patch);free(current.saved);if(tramp)munmap(tramp,4096);munmap(game,65536);}
 static void *thread_(void *unused){(void)unused;for(int j=0;j<10000;j++)assert(((Fn)game)(0,0,0,0)==0);return NULL;}

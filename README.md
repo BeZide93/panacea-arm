@@ -6,9 +6,9 @@ Windows **x64** `version.dll` for Kingdom Hearts HD 1.5+2.5 ReMIX under Proton E
 
 - Adds 13 missing Windows VERSION exports, including `VerQueryValueA`, and forwards them to the system DLL. All four original exports and Panacea initialization are preserved.
 - Uses permanent trampolines to call original game functions without repeatedly removing and reinstalling hooks.
-- Contains no per-file or continuous performance tracing. Brief hook installation/error messages still go to `panacea_hookfix.log`; Panacea's own logging settings remain applicable.
+- On `main`, our added hook engine writes no logs and contains no performance collector. Panacea's original logging, settings and crash handling remain unchanged.
 
-The separate [Riku performance fix](https://github.com/BeZide93/kh2-riku-perf-fix) is optional and remains a separate mod DLL.
+The general [KH2 Asset Size Cache](https://github.com/BeZide93/kh2-asset-size-cache) is an optional, separate mod. Install its `KH2AssetSizeCache.dll` in `mod/kh2/dll`; it is not bundled into this `version.dll`.
 
 ## Install
 
@@ -18,7 +18,14 @@ The separate [Riku performance fix](https://github.com/BeZide93/kh2-riku-perf-fi
 
 To roll back, close the game and restore your backup. `original/version.dll` is the unmodified input; `rollback/version-v1.dll` retains only the export fix, without the trampoline fix.
 
-The [original package](packages/OpenKH-Panacea-Proton-x64-Paket.zip) includes the DLL, source, technical reports and rollback files. Freshly built packages are available under **Actions → Build and validate → Artifacts → Panacea-ARM-x64**. See [ANLEITUNG.txt](ANLEITUNG.txt) for German instructions.
+The [current package](packages/Panacea-ARM-x64.zip) includes the DLL, source, instructions and rollback files. The [original package](packages/OpenKH-Panacea-Proton-x64-Paket.zip) is a historical archive and still contains the earlier logging build. Freshly built packages are available under **Actions → Build and validate → Artifacts → Panacea-ARM-x64**. See [ANLEITUNG.txt](ANLEITUNG.txt) for German instructions.
+
+## Logging variants
+
+- [`main`](https://github.com/BeZide93/panacea-arm/tree/main): normal play, without our added logs or tracing worker.
+- [`diagnose`](https://github.com/BeZide93/panacea-arm/tree/diagnose): the same compatibility fixes plus our hook and asset-call diagnostics. This branch builds its own DLL and CI artifact.
+
+Panacea's own logging settings remain applicable in both variants. Existing log files are not deleted when changing DLLs. Other mods manage their own logs independently.
 
 ## Linux ARM64 dependencies
 

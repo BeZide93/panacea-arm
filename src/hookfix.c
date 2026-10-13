@@ -20,23 +20,11 @@ IMP void *GetProcAddress(void *,const char *);
 IMP int VirtualProtect(void *,size_t,u32,u32 *);
 IMP RF *RtlLookupFunctionEntry(u64,u64 *,void *);
 IMP void ExitProcess(u32);
-IMP void *CreateFileW(const uint16_t *,u32,u32,void *,u32,u32,void *);
-IMP int WriteFile(void *,const void *,u32,u32 *,void *);
-IMP int CloseHandle(void *);
 void *memset(void *v,int c,size_t n) {u8 *p=v; for(size_t i=0;i<n;i++)p[i]=(u8)c;return v;}
 static void copy(void *d,const void *s,size_t n) {u8 *a=d;const u8 *b=s;for(size_t i=0;i<n;i++)a[i]=b[i];}
 static const uint16_t kernel_name[]={'k','e','r','n','e','l','3','2','.','d','l','l',0};
-static const uint16_t log_name[]={'p','a','n','a','c','e','a','_','h','o','o','k','f','i','x','.','l','o','g',0};
-static void log_line(const char *s,u64 address) {
-    char b[160];u32 n=0,written;while(*s && n<120)b[n++]=*s++;
-    b[n++]=' ';b[n++]='0';b[n++]='x';
-    const char hex[]="0123456789abcdef";
-    for(int i=15;i>=0;i--)b[n++]=hex[(address>>(i*4))&15];b[n++]='\r';b[n++]='\n';
-    void *f=CreateFileW(log_name,4,3,0,4,0x80,0); /* append, shared R/W, OPEN_ALWAYS */
-    if(f!=(void *)(intptr_t)-1) {WriteFile(f,b,n,&written,0);CloseHandle(f);}
-}
 __attribute__((noreturn)) static void fail(const char *why,u64 target) {
-    log_line(why,target);ExitProcess(0xE04B4802);for(;;){}
+    (void)why;(void)target;ExitProcess(0xE04B4802);for(;;){}
 }
 static int fits32(int64_t v) {return v>=INT32_MIN && v<=INT32_MAX;}
 static unsigned imm_size(hde64s *h) {
@@ -172,6 +160,5 @@ void *hook_install(Hook *hook) {
     copy(target,hook->patch,14);
     if(!flush((void *)(intptr_t)-1,target,14))fail("FAIL entry cache flush",(u64)target);
     u32 ignored;if(!VirtualProtect(target,14,old,&ignored))fail("FAIL entry protection restore",(u64)target);
-    log_line("HookFix v2 installed stable trampoline for",(u64)target);
     return target;
 }
