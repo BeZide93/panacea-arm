@@ -269,6 +269,46 @@ class Execution(TemporaryFixture):
         with patch('core.reports',return_value=[(0x14c,out)]):
             with self.assertRaises(core.SetupError):core.install_runtimes(target,self.plan,self.runner)
 
+    def dotnet_warning_fixture(self, verb='dotnet8', code=1, message=None):
+        target=self.targets[1]
+        pe(target.compat/'pfx/drive_c/Program Files/dotnet/x64/dotnet.exe',0x8664)
+        kit=self.root/'runtime-kit';(kit/'tools').mkdir(parents=True,exist_ok=True)
+        warning=message or f'warning: {verb} install completed, but installed file {target.compat}/pfx/dosdevices/c:/Program Files/dotnet/dotnet.exe not found'
+        (kit/'tools/winetricks').write_text('printf "%s\\n" '+shlex.quote(warning)+'\nexit '+str(code)+'\n')
+        both='Microsoft.NETCore.App 8.0.30 [x]\nMicrosoft.WindowsDesktop.App 8.0.30 [x]\n'
+        complete=[(0x8664,both),(0x14c,both)]
+        before=[(0x8664,both)] if verb=='dotnet8' else [(0x8664,both),(0x14c,'Microsoft.NETCore.App 8.0.12 [x]\n')]
+        return target,kit,before,complete
+
+    def test_dotnet_flat_path_warning_requires_working_runtimes_and_skips_on_retry(self):
+        for verb in ('dotnet8','dotnetdesktop8'):
+            with self.subTest(verb=verb):
+                target,kit,before,complete=self.dotnet_warning_fixture(verb)
+                with patch('core.KIT',kit),patch('core.reports',side_effect=[before,complete,complete]) as reports:
+                    core.install_runtimes(target,self.plan,self.runner)
+                    core.install_runtimes(target,self.plan,self.runner)
+                self.assertEqual(reports.call_count,3)
+                self.assertIn(verb+' verified by working x86/x64',self.log.getvalue())
+        self.assertEqual(self.log.getvalue().count(' -q dotnet8\n'),1)
+        self.assertEqual(self.log.getvalue().count(' -q dotnetdesktop8\n'),1)
+
+    def test_dotnet_flat_path_warning_does_not_hide_missing_architecture(self):
+        target,kit,before,complete=self.dotnet_warning_fixture()
+        with patch('core.KIT',kit),patch('core.reports',side_effect=[before,before]):
+            with self.assertRaisesRegex(core.SetupError,'not working in both'):
+                core.install_runtimes(target,self.plan,self.runner)
+        self.assertNotIn('accepted the Winetricks',self.log.getvalue())
+
+    def test_dotnet_other_errors_are_not_accepted(self):
+        for code,message in [(1,'MSI failed with error 1603'),(2,None)]:
+            with self.subTest(code=code):
+                target,kit,before,complete=self.dotnet_warning_fixture(code=code,message=message)
+                with patch('core.KIT',kit),patch('core.reports',return_value=before) as reports:
+                    with self.assertRaises(core.CommandError) as error:
+                        core.install_runtimes(target,self.plan,self.runner)
+                self.assertEqual(error.exception.returncode,code)
+                self.assertEqual(reports.call_count,1)
+
     @patch('core.require_stopped')
     def test_desktop_path_reuses_local_cabextract_without_sudo(self, _):
         import shutil

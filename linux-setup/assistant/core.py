@@ -31,6 +31,13 @@ class SetupError(Exception):
     pass
 
 
+class CommandError(SetupError):
+    def __init__(self, args, returncode, output):
+        super().__init__(f'Command failed ({returncode}): {Path(str(args[0])).name}. See setup.log.')
+        self.returncode = returncode
+        self.output = output[-100000:]
+
+
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -529,7 +536,7 @@ class Runner:
             raise SetupError('Command timed out. Close any remaining Windows installer before retrying. Backup is retained.') from e
         self.log(result.stdout[-100000:])
         if result.returncode:
-            raise SetupError(f'Command failed ({result.returncode}): {Path(str(args[0])).name}. See setup.log.')
+            raise CommandError(args, result.returncode, result.stdout)
         return result.stdout
 
 
@@ -601,6 +608,16 @@ def installed_verbs(prefix):
     return set(log.read_text().splitlines()) if log.exists() else set()
 
 
+def dotnet_layout_warning(error, verb, target):
+    """Only Winetricks' final flat-path check; installer failures stay fatal."""
+    nested = target.compat/'pfx/drive_c/Program Files/dotnet/x64/dotnet.exe'
+    return (verb in ('dotnet8','dotnetdesktop8') and error.returncode == 1
+            and pe_machine(nested) == 0x8664
+            and re.search(r'^warning: '+re.escape(verb)+
+                          r' install completed, but installed file [^\r\n]+/Program Files/dotnet/dotnet\.exe not found$',
+                          error.output, re.M) is not None)
+
+
 def install_runtimes(target, plan, runner):
     env = wine_env(target, plan.steam)
     check_wine(env, runner)
@@ -616,12 +633,21 @@ def install_runtimes(target, plan, runner):
             continue
         if verb in records:
             raise SetupError(f'{target.label}: {verb} is recorded but its Windows runtimes do not pass the checks. No forced reinstall; inspect setup.log.')
-        runner.run(['bash', KIT/'tools/winetricks','-q',verb], env=env)
+        layout_warning = False
+        try:
+            runner.run(['bash', KIT/'tools/winetricks','-q',verb], env=env)
+        except CommandError as error:
+            if not dotnet_layout_warning(error, verb, target):
+                raise
+            layout_warning = True
+            runner.log(f'{target.label}: Winetricks checked the flat dotnet path; verifying Wine and both runtime architectures before continuing.')
         check_wine(env, runner)
         if runtime:
             current = reports(target, plan, runner)
             if not runtime_ready(current, runtime):
                 raise SetupError(f'{target.label}: {runtime} 8.x is not working in both Windows architectures after installation.')
+            if layout_warning:
+                runner.log(f'{target.label}: {verb} verified by working x86/x64 .NET hosts; accepted the Winetricks path-check warning.')
         elif verb not in installed_verbs(target.compat/'pfx'):
             raise SetupError(f'{target.label}: Winetricks did not record successful installation of {verb}.')
 
