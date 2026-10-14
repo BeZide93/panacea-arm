@@ -1,12 +1,12 @@
 # OpenKH / Panacea unter Linux ARM64: bisherige Einrichtung
 
-[English](README.md) · [Setup-ZIP herunterladen](https://github.com/BeZide93/panacea-arm/raw/refs/heads/main/packages/Panacea-ARM-Linux-Setup.zip)
+[English](README.md) · [Setup-ZIP herunterladen](../packages/Panacea-ARM-Linux-Setup.zip?raw=true)
 
 Stand: 12. Oktober 2026. Für deine Arch-Linux-ARM-/DroidDeck-Umgebung unter Android mit Steam und Proton Experimental ARM64. Im Terminal dieser Linux-Umgebung ausführen, nicht in einer beliebigen Android-/Termux-Shell.
 
 ## Grafischer Setup-Assistent für DroidDeck
 
-1. Das [vollständige Setup-ZIP](https://github.com/BeZide93/panacea-arm/raw/refs/heads/main/packages/Panacea-ARM-Linux-Setup.zip) **im Linux-Desktop von DroidDeck** herunterladen und entpacken.
+1. Das [vollständige Setup-ZIP](../packages/Panacea-ARM-Linux-Setup.zip?raw=true) **im Linux-Desktop von DroidDeck** herunterladen und entpacken.
 2. Steam, Kingdom Hearts, OpenKH und andere Windows-Anwendungen vollständig schließen. **`Panacea-Setup.desktop`** im entpackten Ordner doppelklicken. Falls der Dateimanager nachfragt: Ausführung erlauben / Starter als vertrauenswürdig markieren. Den Ordner zusammenlassen.
 3. Erkanntes Spiel, Steam-Konto, vorhandenen Prefix und **den tatsächlich für dieses Programm verwendeten Proton-Build** prüfen. Bei leeren oder mehrdeutigen Feldern über Dropdown oder `…` auswählen. **OpenKH** aktivieren, um zusätzlich dessen eigene Steam-Verknüpfung und Prefix einzurichten.
 4. **Einrichten** anklicken, die angezeigten Änderungen prüfen und bestätigen. Vor der Installation werden alle ausgewählten Prefixe, die ersetzte DLL und geänderte Steam-Dateien gesichert. Anschließend Steam neu öffnen.
