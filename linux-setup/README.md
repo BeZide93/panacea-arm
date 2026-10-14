@@ -19,6 +19,8 @@ Python 3 is supplied by DroidDeck's Linux tools. With Tk available, the native f
 
 Explicit browser mode: `bash start-setup.sh --web`. The text assistant remains available with `bash start-setup.sh --terminal`. The browser server binds only to `127.0.0.1` on a random port and protects its API with a per-session token and origin/host checks. Opening the page or reviewing the selection does not start installation; **Jetzt einrichten** requires a reviewed selection. Downloads for missing runtimes still require Internet access.
 
+**Locally installed helpers:** The desktop launcher, assistant checks and installer commands explicitly include `~/.local/bin` in their search path, just like the working manual setup. An existing `~/.local/bin/cabextract` is reused without `sudo` or package installation, even when the desktop did not load your shell profile. `setup.log` records the selected `cabextract` path.
+
 DroidDeck's desktop can identify its user as `root` while running under the Android app UID; that does not provide ordinary Linux root privileges. Existing helper tools are reused, and downloading the verified Winetricks script alone never invokes a package manager. If tools such as `cabextract` are actually missing and the session has neither root privileges nor `sudo`, setup lists them and stops **before modifying any prefix**. Install them through the Linux environment's supported package-installation facility and retry; this assistant does not automate DroidDeck's separate fake-root installer or require Android device root.
 
 ### Paths from the working manual setup

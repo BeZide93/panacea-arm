@@ -2,6 +2,8 @@
 # Shared functions; loading this file does not run Wine or change a prefix.
 set -euo pipefail
 KIT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+# Reuse the user-local helpers installed by the manual DroidDeck setup.
+export PATH="$HOME/.local/bin:$PATH"
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null || fail "Required program not found: $1"; }
 load_config() {

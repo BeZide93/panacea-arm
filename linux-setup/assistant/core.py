@@ -34,6 +34,15 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def host_env():
+    """The manual setup's user-local tools, also for direct Python/desktop starts."""
+    env = os.environ.copy()
+    local_bin = str(Path.home()/'.local/bin')
+    entries = env.get('PATH', os.defpath).split(os.pathsep)
+    env['PATH'] = os.pathsep.join([local_bin] + [p for p in entries if p != local_bin])
+    return env
+
+
 @dataclasses.dataclass
 class Node:
     key: str
@@ -360,7 +369,7 @@ def runtime_ready(reports, runtime):
 
 
 def wine_env(target, steam):
-    env = os.environ.copy()
+    env = host_env()
     files = target.proton/'files'
     env.update(WINEPREFIX=str(target.compat/'pfx'), WINE=str(files/'bin-arm64/wine'),
                WINESERVER=str(files/'bin-arm64/wineserver'),
@@ -512,7 +521,7 @@ class Runner:
         self.log('$ '+shlex.join(str(x) for x in args))
         # All commands use argv arrays; no paths or Steam values are executed as shell text.
         try:
-            result = subprocess.run([str(x) for x in args], env=env, cwd=cwd,
+            result = subprocess.run([str(x) for x in args], env=host_env() if env is None else env, cwd=cwd,
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                     text=True, errors='replace', timeout=timeout)
         except subprocess.TimeoutExpired as e:
@@ -626,9 +635,12 @@ def execute(plan, runner):
     dll_before = (plan.game_dir/'version.dll').read_bytes() if dll and (plan.game_dir/'version.dll').exists() else None
     if plan.runtimes:
         wt = KIT/'tools/winetricks'
-        if not all(shutil.which(n) for n in ['python3','curl','cabextract','unzip','file']) or not wt.is_file():
+        search_path = host_env()['PATH']
+        missing = [n for n in ['python3','curl','cabextract','unzip','file'] if not shutil.which(n, path=search_path)]
+        if not missing:
+            runner.log('Using cabextract: '+str(shutil.which('cabextract', path=search_path)))
+        if missing or not wt.is_file():
             runner.log('Preparing missing Linux helper tools and verified Winetricks.')
-            missing = [n for n in ['python3','curl','cabextract','unzip','file'] if not shutil.which(n)]
             if missing and os.geteuid() != 0:
                 if not shutil.which('sudo'):
                     raise SetupError('Missing Linux tools: '+', '.join(missing)+

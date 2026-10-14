@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+# Desktop launchers do not necessarily read the shell profile used by the manual setup.
+export PATH="$HOME/.local/bin:$PATH"
 finish() { local status=$?; if (( status != 0 )); then printf '\nSetup failed (%s). Press Enter to close.\n' "$status"; read -r _ || true; fi; }
 trap finish EXIT
 case "$(uname -m)" in aarch64|arm64) ;; *) printf 'Run this in DroidDeck’s ARM64 Linux desktop.\n' >&2; exit 1;; esac

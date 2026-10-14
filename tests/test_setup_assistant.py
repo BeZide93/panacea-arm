@@ -233,7 +233,7 @@ class Execution(TemporaryFixture):
     @patch('core.require_stopped')
     def test_winetricks_download_needs_no_sudo_when_tools_present(self, _):
         self.plan.runtimes=True
-        with patch('core.shutil.which',side_effect=lambda name: None if name=='sudo' else '/bin/'+name), patch('core.os.geteuid',return_value=10234), patch.object(self.runner,'run',side_effect=core.SetupError('stop at helper')) as run:
+        with patch('core.shutil.which',side_effect=lambda name, **kw: None if name=='sudo' else '/bin/'+name), patch('core.os.geteuid',return_value=10234), patch.object(self.runner,'run',side_effect=core.SetupError('stop at helper')) as run:
             with self.assertRaisesRegex(core.SetupError,'stop at helper'):
                 core.execute(self.plan,self.runner)
         self.assertEqual(run.call_args.args[0],['bash',core.KIT/'00-host-tools.sh','--install'])
@@ -242,7 +242,7 @@ class Execution(TemporaryFixture):
     @patch('core.require_stopped')
     def test_missing_tools_without_sudo_stop_before_backup(self, _):
         self.plan.runtimes=True
-        with patch('core.shutil.which',side_effect=lambda name: None if name in ('sudo','cabextract') else '/bin/'+name), patch('core.os.geteuid',return_value=10234), patch.object(self.runner,'run') as run:
+        with patch('core.shutil.which',side_effect=lambda name, **kw: None if name in ('sudo','cabextract') else '/bin/'+name), patch('core.os.geteuid',return_value=10234), patch.object(self.runner,'run') as run:
             with self.assertRaisesRegex(core.SetupError,'Missing Linux tools: cabextract'):
                 core.execute(self.plan,self.runner)
             run.assert_not_called()
@@ -256,6 +256,36 @@ class Execution(TemporaryFixture):
         self.assertNotIn('winetricks -q',self.log.getvalue())
         with patch('core.reports',return_value=[(0x14c,out)]):
             with self.assertRaises(core.SetupError):core.install_runtimes(target,self.plan,self.runner)
+
+    @patch('core.require_stopped')
+    def test_desktop_path_reuses_local_cabextract_without_sudo(self, _):
+        import shutil
+        host=self.root/'host-bin';host.mkdir()
+        local=self.root/'.local/bin';local.mkdir(parents=True)
+        for name in ['python3','curl','unzip','file']:
+            p=host/name;p.write_text('#!/bin/sh\nexit 0\n');p.chmod(0o755)
+        (host/'cp').symlink_to(shutil.which('cp'))
+        cab=local/'cabextract';cab.write_text('#!/bin/sh\necho "cabextract version 1.11"\n');cab.chmod(0o755)
+        kit=self.root/'kit';(kit/'tools').mkdir(parents=True)
+        payload=b'verified fixture winetricks'
+        (kit/'tools/winetricks').write_bytes(payload)
+        self.plan.runtimes=True;self.plan.install_dll=False
+        def runtime(target, plan, runner):
+            # The same helper must be visible to both host commands and Winetricks.
+            env=core.wine_env(target,plan.steam)
+            self.assertEqual(env['PATH'].split(':')[:2],[str(self.proton/'files/bin-arm64'),str(local)])
+            for scope in [None,env]:
+                self.assertIn('version 1.11',runner.run(['cabextract','--version'],env=scope))
+        with patch.dict(os.environ,HOME=str(self.root),PATH=str(host)), patch('core.KIT',kit), patch('core.WINETRICKS_SHA256',core.digest(payload)), patch('core.os.geteuid',return_value=10234), patch('core.install_runtimes',side_effect=runtime):
+            self.assertIsNone(shutil.which('cabextract'))
+            self.assertIsNone(shutil.which('sudo'))
+            before=os.environ.copy()
+            folder=core.execute(self.plan,self.runner)
+            self.assertEqual(os.environ,before)
+        self.assertTrue((folder/'backup.json').is_file())
+        self.assertIn('Using cabextract: '+str(cab),self.log.getvalue())
+        self.assertNotIn('00-host-tools.sh',self.log.getvalue())
+        self.assertIn('SETUP COMPLETE',self.log.getvalue())
 
 
 class BrowserInterface(unittest.TestCase):
@@ -398,7 +428,7 @@ class Startup(TemporaryFixture):
             'apt-get':'echo UNEXPECTED_APT >> "$CALLS"; exit 99',
         }.items():
             path=bin_dir/name;path.write_text('#!/bin/sh\n'+body+'\n');path.chmod(0o755)
-        env=dict(os.environ,PATH=str(bin_dir)+':'+os.environ['PATH'],CALLS=str(calls))
+        env=dict(os.environ,HOME=str(self.root),PATH=str(bin_dir)+':'+os.environ['PATH'],CALLS=str(calls))
         result=subprocess.run(['bash',str(ROOT/'linux-setup/start-setup.sh')],env=env,input='',text=True,capture_output=True)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(calls.read_text().splitlines(),['-c import tkinter','assistant/web.py'])
@@ -414,11 +444,13 @@ class Startup(TemporaryFixture):
         bin_dir=self.root/'bin';bin_dir.mkdir()
         for name in ['dirname','mkdir','mktemp','sha256sum','chmod','mv','rm']:
             (bin_dir/name).symlink_to(shutil.which(name))
-        for name in ['python3','cabextract','unzip','file']:
+        for name in ['python3','unzip','file']:
             path=bin_dir/name;path.write_text('#!/bin/sh\nexit 0\n');path.chmod(0o755)
+        local_bin=self.root/'.local/bin';local_bin.mkdir(parents=True)
+        cab=local_bin/'cabextract';cab.write_text('#!/bin/sh\nexit 0\n');cab.chmod(0o755)
         curl=bin_dir/'curl'
         curl.write_text('#!/bin/sh\nwhile [ "$1" != -o ]; do shift; done\nprintf "fixture winetricks\\n" > "$2"\n');curl.chmod(0o755)
-        env=dict(os.environ,PATH=str(bin_dir))
+        env=dict(os.environ,HOME=str(self.root),PATH=str(bin_dir))
         result=subprocess.run(['/bin/bash',str(kit/'00-host-tools.sh'),'--install'],env=env,text=True,capture_output=True)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn('package installation skipped',result.stdout)
