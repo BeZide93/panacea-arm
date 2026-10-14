@@ -8,23 +8,21 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from core import (APPID, Plan, Runner, SetupError, Target, accounts, execute,
-                  game_dirs, libraries, prefixes, proton_candidates,
-                  require_stopped, setup_lock, shortcuts, steam_roots, plan_summary)
-
-from routing import configuration, observe
+                  require_stopped, setup_lock, shortcuts, plan_summary)
+from setup_profile import load_profile
 
 
 class Assistant:
     def __init__(self, window):
         self.window = window
         window.title('Panacea ARM – DroidDeck Setup')
-        window.geometry('960x880')
+        window.geometry('960x800')
         self.busy = False
         self.events = queue.Queue()
         self.home = Path.home()
+        self.profile = None
         self.state = Path(os.environ.get('XDG_STATE_HOME', self.home/'.local/state'))/'panacea-arm'
         self.shortcut_map = {}
-        self.proofs = {}
         self.vars = {key: tk.StringVar() for key in ['steam','account','game','game_prefix','game_proton',
                                                    'shortcut','openkh_prefix','openkh_proton','batch','batch_target','backup']}
         self.flags = {key: tk.BooleanVar(value=value) for key,value in
@@ -33,28 +31,26 @@ class Assistant:
         self.vars['batch_target'].set(APPID)
         outer = ttk.Frame(window, padding=12); outer.pack(fill='both', expand=True)
         ttk.Label(outer, text='Panacea / OpenKH einrichten', font=('',16,'bold')).pack(anchor='w')
-        ttk.Label(outer, text='Zur Erkennung Spiel/OpenKH über Steam öffnen; vor der Installation vollständig schließen.\n'
+        ttk.Label(outer, text='Steam, Spiel und Windows-Anwendungen vor der Installation vollständig schließen.\n'
                              'DroidDeck, Steam sowie Spiel/OpenKH müssen bereits installiert und einmal gestartet worden sein.').pack(anchor='w', pady=(4,10))
         form = ttk.Frame(outer); form.pack(fill='x'); form.columnconfigure(1,weight=1)
         self.form = form
         self.row = 0
         self.widgets = []
-        self.field('Steam-Verzeichnis', 'steam')
+        self.field('Steam-Verzeichnis', 'steam', combo=True)
         button = ttk.Button(form, text='Installationen suchen / neu einlesen', command=self.detect)
         button.grid(row=self.row,column=1,sticky='w',pady=4); self.widgets.append(button); self.row += 1
         self.account = self.field('Steam-Konto (userdata-ID)', 'account', combo=True)
         self.account.bind('<<ComboboxSelected>>', lambda _: self.read_account())
         self.check('Kingdom Hearts einrichten', 'game')
-        self.field('Spielordner', 'game')
+        self.field('Spielordner', 'game', combo=True)
         self.game_prefix = self.field('KH compatdata (ohne /pfx)', 'game_prefix', combo=True, browse=False)
-        self.game_proton = self.field('KH ARM64-Proton (bestätigt)', 'game_proton', combo=True,browse=False)
-        self.capture_button('Laufendes Kingdom Hearts erkennen', 'game')
+        self.game_proton = self.field('KH ARM64-Proton', 'game_proton', combo=True,browse=False)
         self.check('OpenKH zusätzlich / separat einrichten', 'openkh')
         self.shortcut = self.field('OpenKH Steam-Verknüpfung', 'shortcut',combo=True)
         self.shortcut.bind('<<ComboboxSelected>>',lambda _: self.choose_shortcut())
         self.openkh_prefix = self.field('OpenKH compatdata (ohne /pfx)', 'openkh_prefix',combo=True,browse=False)
-        self.openkh_proton = self.field('OpenKH ARM64-Proton (bestätigt)', 'openkh_proton',combo=True,browse=False)
-        self.capture_button('Laufendes OpenKH erkennen', 'openkh')
+        self.openkh_proton = self.field('OpenKH ARM64-Proton', 'openkh_proton',combo=True,browse=False)
         self.field('Backup-Verzeichnis', 'backup')
         self.field('Optional: originale add_registry.bat', 'batch',file=True)
         self.batch_target = self.field('Registry-Batch ausführen in AppID', 'batch_target',combo=True)
@@ -63,7 +59,7 @@ class Assistant:
         for key,label in [('runtimes','Fehlende Runtimes installieren'),('dll','Main version.dll einsetzen'),('launch','Steam-Startoptionen einrichten')]:
             widget = ttk.Checkbutton(options,text=label,variable=self.flags[key]);widget.pack(side='left',padx=(0,12));self.widgets.append(widget)
         buttons = ttk.Frame(outer);buttons.pack(fill='x')
-        for text,command in [('Auswahl prüfen',self.review),('Einrichten',self.install),('Gefundene Pfade (Experten)',self.inventory)]:
+        for text,command in [('Auswahl prüfen',self.review),('Einrichten',self.install)]:
             button=ttk.Button(buttons,text=text,command=command);button.pack(side='left',padx=(0,8));self.widgets.append(button)
         ttk.Button(buttons,text='Ordner mit Setup-Log öffnen',command=self.open_log).pack(side='left')
         self.status = tk.StringVar(value='Bereit. Die Auswahl wird vor Änderungen noch einmal angezeigt.')
@@ -73,9 +69,7 @@ class Assistant:
         self.progress = ttk.Progressbar(outer, mode='indeterminate');self.progress.pack(fill='x',pady=(6,0))
         window.protocol('WM_DELETE_WINDOW',self.close)
         window.after(100,self.poll)
-        roots=steam_roots(self.home)
-        if len(roots)==1:
-            self.vars['steam'].set(str(roots[0]));self.detect()
+        self.detect()
 
     def field(self,label,key,combo=False,browse=None,file=False):
         ttk.Label(self.form,text=label).grid(row=self.row,column=0,sticky='w',pady=2,padx=(0,10))
@@ -96,7 +90,6 @@ class Assistant:
         path=filedialog.askopenfilename(title='Originale add_registry.bat wählen',filetypes=[('Registry batch','*.bat')]) if file else filedialog.askdirectory()
         if path:
             self.vars[key].set(path)
-            if key in ('game_prefix','openkh_prefix'):self.suggest_proton(key.split('_')[0])
 
     def path(self,key):
         s=self.vars[key].get().strip()
@@ -108,68 +101,22 @@ class Assistant:
 
     def detect(self):
         try:
-            steam=self.path('steam');self.libs=libraries(steam,self.home)
-            games=game_dirs(self.libs)
-            if len(games)==1:self.vars['game'].set(str(games[0]))
-            elif len(games)>1:self.display('Mehrere Spielordner gefunden. Bitte über … auswählen:\n'+'\n'.join(map(str,games)))
-            self.game_prefix['values']=[]
-            self.vars['game_prefix'].set('')
-            for widget in (self.game_proton,self.openkh_proton):widget['values']=[]
-            self.suggest_proton('game')
-            users=accounts(steam);self.account['values']=users
+            self.profile=load_profile(self.home)
+            p=self.profile
+            for key,value in [('steam',p.steam),('game',p.game),('game_prefix',p.game_compat),
+                              ('game_proton',p.proton),('backup',p.backup)]:
+                self.vars[key].set(str(value) if value else '')
+            self.game_prefix['values']=[str(p.game_compat)]
+            self.game_proton['values']=[str(p.proton)] if p.proton else []
+            self.openkh_proton['values']=self.game_proton['values']
+            users=accounts(p.steam);self.account['values']=users
             if self.vars['account'].get() not in users:self.vars['account'].set(users[0] if len(users)==1 else '')
             self.read_account()
-            self.status.set('Inventar gelesen. Spiel/OpenKH über Steam starten und mit „Laufendes … erkennen“ bestätigen.')
-        except (SetupError,OSError,UnicodeError) as e:messagebox.showerror('Erkennung',str(e))
-
-    def suggest_proton(self,kind):
-        # config_info is history, not evidence of the current launch route.
-        self.proofs.pop(kind,None)
-        self.vars[kind+'_proton'].set('')
-
-    def capture_button(self,label,kind):
-        button=ttk.Button(self.form,text=label,command=lambda:self.capture(kind))
-        button.grid(row=self.row,column=1,sticky='w',pady=3)
-        self.widgets.append(button);self.row+=1
-
-    def capture(self,kind):
-        try:
-            steam=self.path('steam');account=self.vars['account'].get()
-            if not account:raise SetupError('Steam-Konto auswählen.')
-            selected=self.shortcut_map.get(self.vars['shortcut'].get())
-            if kind=='openkh' and not selected:raise SetupError('OpenKH-Verknüpfung auswählen.')
-            appid=APPID if kind=='game' else selected.appid
-            libs=libraries(steam,self.home)
-            candidates=proton_candidates(self.home,libs,steam)
-            _,note=configuration(steam,account,appid,libs)
-            self.display(note)
-            proof=observe(steam,account,appid,libs,candidates)
-            self.proofs[kind]=proof
-            getattr(self,kind+'_prefix')['values']=[str(proof.compat)]
-            getattr(self,kind+'_proton')['values']=[str(proof.proton)]
-            self.vars[kind+'_prefix'].set(str(proof.compat))
-            self.vars[kind+'_proton'].set(str(proof.proton))
-            self.display(f'{kind}: Start bestätigt. Prefix: {proof.compat}\nProton: {proof.proton}')
-            self.status.set('Start bestätigt. Vor der Installation alle Programme und Steam vollständig schließen.')
-        except (SetupError,OSError,UnicodeError,ValueError) as e:
-            self.proofs.pop(kind,None)
-            messagebox.showerror('Laufenden Start erkennen',str(e))
-
-    def inventory(self):
-        try:
-            steam=self.path('steam');libs=libraries(steam,self.home)
-            lines=['Nur Inventar, keine Bestätigung des aktiven Starts.', 'Kingdom Hearts Prefixe:']
-            lines.extend(map(str,prefixes(libs,APPID)))
-            selected=self.shortcut_map.get(self.vars['shortcut'].get())
-            if selected:
-                lines.append('OpenKH Prefixe:');lines.extend(map(str,prefixes(libs,selected.appid)))
-            lines.append('ARM64-Proton-Builds:')
-            lines.extend(map(str,proton_candidates(self.home,libs,steam)))
-            messagebox.showinfo('Gefundene Pfade (Experten)','\n'.join(lines))
-        except (SetupError,OSError,UnicodeError,ValueError) as e:messagebox.showerror('Inventar',str(e))
+            self.display(p.note)
+            self.status.set('Manuelles DroidDeck-Profil geladen. Explizite Pfadänderungen über config.env; kein Bibliothekswechsel.')
+        except (SetupError,OSError,UnicodeError) as e:messagebox.showerror('Profil laden',str(e))
 
     def read_account(self):
-        self.proofs.clear()
         self.shortcut_map={};self.vars['shortcut'].set('');self.vars['openkh_prefix'].set('');self.vars['openkh_proton'].set('')
         account=self.vars['account'].get()
         if account:
@@ -187,18 +134,22 @@ class Assistant:
     def choose_shortcut(self):
         s=self.shortcut_map.get(self.vars['shortcut'].get())
         if not s:return
-        self.openkh_prefix['values']=[]
-        self.vars['openkh_prefix'].set('');self.suggest_proton('openkh')
+        compat=self.profile.compat(s.appid)
+        self.openkh_prefix['values']=[str(compat)]
+        self.vars['openkh_prefix'].set(str(compat))
+        self.vars['openkh_proton'].set(str(self.profile.proton) if self.profile.proton else '')
         # Never silently execute a batch discovered in a downloaded directory.
         self.display(f'OpenKH erkannt: AppID {s.appid}. Für dessen Einrichtung das OpenKH-Kästchen aktivieren.')
 
     def plan(self):
+        if self.profile is None:raise SetupError('Profil konnte nicht geladen werden.')
+        self.profile.require_proton()
         targets=[]
-        if self.flags['game'].get():targets.append(Target('Kingdom Hearts',APPID,self.path('game_prefix'),self.path('game_proton'),True,self.proofs.get('game')))
+        if self.flags['game'].get():targets.append(Target('Kingdom Hearts',APPID,self.path('game_prefix'),self.path('game_proton'),True))
         if self.flags['openkh'].get():
             s=self.shortcut_map.get(self.vars['shortcut'].get())
             if not s:raise SetupError('OpenKH muss als Steam-Verknüpfung existieren. Steam danach vollständig schließen und neu einlesen.')
-            targets.append(Target('OpenKH',s.appid,self.path('openkh_prefix'),self.path('openkh_proton'),False,self.proofs.get('openkh')))
+            targets.append(Target('OpenKH',s.appid,self.path('openkh_prefix'),self.path('openkh_proton')))
         dll=self.flags['dll'].get()
         if dll and not self.flags['game'].get():raise SetupError('Für OpenKH allein bitte „Main version.dll einsetzen“ abwählen.')
         plan=Plan(self.path('steam'),self.vars['account'].get(),self.path('game') if dll else Path('/'),

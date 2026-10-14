@@ -15,7 +15,8 @@ with tempfile.TemporaryDirectory() as home, patch('pathlib.Path.home',return_val
     assert app.output.winfo_ismapped()
     assert app.output.winfo_height() >= 80, 'Progress output is clipped'
     assert app.progress.winfo_y()+app.progress.winfo_height() <= app.progress.master.winfo_height()
-    assert app.vars['steam'].get()==''
+    assert app.vars['steam'].get()==str(Path(home)/'.local/share/Steam')
+    assert app.vars['game_prefix'].get()==str(Path(home)/'.local/share/Steam/steamapps/compatdata/2552430')
     with patch('gui.messagebox.showerror') as error:
         app.review()
         assert error.called, 'Empty selections should show a validation message'

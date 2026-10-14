@@ -369,11 +369,6 @@ def wine_env(target, steam):
     env['PATH'] = str(files/'bin-arm64')+':'+env.get('PATH', '')
     env['LD_LIBRARY_PATH'] = ':'.join(str(files/'lib'/a) for a in ['x86_64-linux-gnu','aarch64-linux-gnu','i386-linux-gnu']) + (':'+env['LD_LIBRARY_PATH'] if env.get('LD_LIBRARY_PATH') else '')
     env['WINEDLLPATH'] = str(files/'lib/vkd3d')+':'+str(files/'lib/wine') + (':'+env['WINEDLLPATH'] if env.get('WINEDLLPATH') else '')
-    if target.evidence is not None:
-        from routing import SYNC_KEYS
-        for key in SYNC_KEYS:
-            env.pop(key, None)
-        env.update(target.evidence.sync)
     env.pop('WINEARCH', None)
     return env
 
@@ -408,7 +403,6 @@ class Target:
     compat: Path
     proton: Path
     game: bool = False
-    evidence: object = None
 
 
 @dataclasses.dataclass
@@ -623,9 +617,7 @@ def install_runtimes(target, plan, runner):
 
 
 def execute(plan, runner):
-    from routing import validate_targets
     plan.validate()
-    validate_targets(plan)
     require_stopped()
     # Resolve every edit/payload before modifying prefixes; malformed launch
     # options stop here and can be handled by deselecting automatic editing.
@@ -649,11 +641,9 @@ def execute(plan, runner):
         if not wt.is_file() or digest(wt.read_bytes()) != WINETRICKS_SHA256:
             raise SetupError('Winetricks checksum mismatch; no prefix changed.')
     require_stopped()
-    validate_targets(plan)
     folder = backup(plan, edits, runner)
     runner.log('BACKUP COMPLETE. '+str(folder))
     require_stopped()
-    validate_targets(plan)
     for target in plan.targets:
         env = wine_env(target, plan.steam)
         if plan.runtimes:
@@ -696,12 +686,8 @@ def setup_lock(state):
 
 
 def plan_summary(plan):
-    from routing import validate_targets
-    validate_targets(plan)
     lines=[]
     for t in plan.targets:lines.append(f'{t.label} ({t.appid})\nPrefix: {t.compat}/pfx\nProton: {t.proton}')
-    for t in plan.targets:
-        lines.append(f'{t.label}: Prefix und Wine-Build am laufenden Start bestätigt (PID {t.evidence.pid}).\n'+t.evidence.note)
     lines.append('Backup: '+str(plan.backup_root))
     if plan.runtimes:lines.append('Runtimes prüfen; fehlende .NET-8-Runtimes (x86/x64), für KH zusätzlich vcrun6 und xaudio29 installieren.\nDas Paket nutzt die dokumentierten Winetricks-Versionen (.NET 8.0.12); vorhandene funktionierende 8.x-Versionen bleiben erhalten.')
     if plan.install_dll:lines.append('Main version.dll ersetzen: '+str(plan.game_dir))

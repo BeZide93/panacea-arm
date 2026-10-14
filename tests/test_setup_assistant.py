@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'linux-setup/assistant'))
 import core
 import terminal
-import routing
+import setup_profile
 
 CONFIG = b'''// preserve this comment\n"UserLocalConfigStore" { "Software" { "Valve" { "Steam" { "apps" {
 "2552430" { "LaunchOptions" "PROTON_LOG=1 WINEDLLOVERRIDES=\\"version=b;foo=n\\" gamescope -f -- %command% -windowed" "other" "untouched" }
@@ -158,15 +158,6 @@ class Execution(TemporaryFixture):
         (self.game/'KINGDOM HEARTS II FINAL MIX.exe').touch();(self.game/'version.dll').write_bytes(b'old DLL')
         self.plan=core.Plan(self.steam,'123',self.game,self.root/'backups',self.targets,runtimes=False)
         self.log=io.StringIO();self.runner=core.Runner(lambda s:None,self.log)
-        self.proc=self.root/'proc';self.proc.mkdir()
-        for index,t in enumerate(self.targets):
-            process=self.proc/str(100+index);process.mkdir()
-            (process/'exe').symlink_to(self.proton/'files/bin-arm64/wine')
-            values={'SteamAppId':t.appid,'STEAM_COMPAT_CLIENT_INSTALL_PATH':str(self.steam),
-                    'STEAM_COMPAT_DATA_PATH':str(t.compat),'WINEPREFIX':str(t.compat/'pfx')}
-            (process/'environ').write_bytes(b'\0'.join(f'{k}={v}'.encode() for k,v in values.items()))
-            t.evidence=routing.observe(self.steam,'123',t.appid,[self.steam],[self.proton],self.proc)
-
 
     @patch('core.require_stopped')
     def test_full_install_both_prefixes_backup_and_idempotency(self,stopped):
@@ -185,8 +176,6 @@ class Execution(TemporaryFixture):
     @patch('core.require_stopped')
     def test_failure_preserves_dll_config_and_backup(self,_):
         (self.proton/'files/bin-arm64/wine').write_text('#!/bin/sh\nexit 7\n')
-        for t in self.targets:
-            t.evidence=routing.observe(self.steam,'123',t.appid,[self.steam],[self.proton],self.proc)
         before=(self.cfg/'localconfig.vdf').read_bytes()
         with self.assertRaises(core.SetupError):core.execute(self.plan,self.runner)
         self.assertEqual((self.game/'version.dll').read_bytes(),b'old DLL')
@@ -230,8 +219,9 @@ class Execution(TemporaryFixture):
         self.assertIn('BACKUP COMPLETE',(self.root/'state/setup.log').read_text())
 
     def test_terminal_detects_both_targets_without_writes(self):
-        answers=['','', 'j', '', '', '', '', '', '', '', '', '', '', '', '']
-        with patch('terminal.steam_roots',return_value=[self.steam]), patch('terminal.proton_candidates',return_value=[self.proton]), patch('terminal.game_dirs',return_value=[self.game]), patch('terminal.observe',side_effect=[t.evidence for t in self.targets]), patch('builtins.input',side_effect=answers), patch('builtins.print'):
+        answers=['','j','','','','','','','']
+        profile=setup_profile.Profile(self.steam,self.game,self.targets[0].compat,self.root/'backups',self.proton,'fixture')
+        with patch('terminal.load_profile',return_value=profile), patch('builtins.input',side_effect=answers), patch('builtins.print'):
             plan=terminal.build_plan(self.root)
         self.assertEqual([t.appid for t in plan.targets],[core.APPID,'3000123456'])
         self.assertEqual(plan.account,'123')
@@ -257,115 +247,6 @@ class Execution(TemporaryFixture):
             run.assert_not_called()
         self.assertFalse(self.plan.backup_root.exists())
 
-    def set_mapping(self, name='droiddeck-proton-arm64', key=None):
-        path=self.steam/'config/config.vdf';path.parent.mkdir(exist_ok=True)
-        path.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { "'+(key or core.APPID)+'" { "name" "'+name+'" } } } } } }')
-        folder=self.steam/'compatibilitytools.d'/name;folder.mkdir(parents=True,exist_ok=True)
-        (folder/'compatibilitytool.vdf').write_text('"compatibilitytools" { "compat_tools" { "'+name+'" { "display_name" "Proton" } } }')
-        (folder/'toolmanifest.vdf').write_text('"manifest" { "commandline" "/droiddeck-proton" }')
-        (folder/'droiddeck-proton').write_text('#!/bin/sh\n# wrapper fixture\n')
-        return folder
-
-    def process_env(self, index=0, **changes):
-        path=self.proc/str(100+index)/'environ'
-        values=dict(item.split('=',1) for item in path.read_text().split('\0') if '=' in item)
-        values.update(changes)
-        path.write_bytes(b'\0'.join(f'{k}={v}'.encode() for k,v in values.items()))
-
-    def observe_game(self, candidates=None):
-        return routing.observe(self.steam,'123',core.APPID,[self.steam],candidates or [self.proton],self.proc)
-
-    def test_routing_default_and_per_app_mapping(self):
-        self.set_mapping('default',key='0')
-        self.assertEqual(routing.mapping_choice(self.steam,core.APPID),('default','Steam-Standard'))
-        self.set_mapping('specific')
-        self.assertEqual(routing.mapping_choice(self.steam,core.APPID),('specific','Steam-Zuordnung für diese App'))
-
-    def test_routing_wrapper_may_launch_different_wine_tree(self):
-        wrapper=self.set_mapping()
-        self.process_env(STEAM_COMPAT_TOOL_PATHS=str(wrapper),WINEESYNC='1',BL_SYNC_PACK='test-pack')
-        proof=self.observe_game()
-        self.assertEqual(proof.proton,self.proton)
-        self.assertNotEqual(proof.proton,wrapper)
-        self.targets[0].evidence=proof
-        env=core.wine_env(self.targets[0],self.steam)
-        self.assertEqual(env['WINEESYNC'],'1')
-        self.assertEqual(env['BL_SYNC_PACK'],'test-pack')
-        self.assertEqual(env['WINESERVER'],str(self.proton/'files/bin-arm64/wineserver'))
-
-    def test_routing_saved_tool_conflict_rejected(self):
-        self.set_mapping()
-        self.process_env(STEAM_COMPAT_TOOL_PATHS='/different/tool')
-        with self.assertRaisesRegex(core.SetupError,'widersprechen'):
-            self.observe_game()
-
-    def test_routing_actual_prefix_wins_over_duplicate_old_prefix(self):
-        other=self.root/'other/steamapps/compatdata'/core.APPID
-        (other/'pfx/drive_c').mkdir(parents=True);(other/'pfx/system.reg').touch()
-        (other/'config_info').write_text('/old/proton/files/share/wine\n')
-        proof=self.observe_game()
-        self.assertEqual(proof.compat,self.targets[0].compat)
-        self.assertNotEqual(proof.compat,other)
-
-    def test_routing_no_process_old_config_is_not_proof(self):
-        (self.proc/'100/environ').unlink()
-        (self.targets[0].compat/'config_info').write_text(str(self.proton)+'/files/share/wine\n')
-        with self.assertRaisesRegex(core.SetupError,'Kein eindeutiger'):
-            self.observe_game()
-
-    def test_routing_shortcut_unsigned_game_id(self):
-        self.process_env(1,SteamAppId='0',STEAM_COMPAT_APP_ID='0',SteamGameId=str((3000123456 << 32) | 0x02000000))
-        proof=routing.observe(self.steam,'123','3000123456',[self.steam],[self.proton],self.proc)
-        self.assertEqual(proof.compat,self.targets[1].compat)
-
-    def test_routing_wrong_prefix_and_mixed_server_rejected(self):
-        self.process_env(WINEPREFIX='/wrong/pfx')
-        with self.assertRaisesRegex(core.SetupError,'WINEPREFIX'):
-            self.observe_game()
-        self.process_env(WINEPREFIX=str(self.targets[0].compat/'pfx'),WINESERVER='/other/files/bin-arm64/wineserver')
-        with self.assertRaisesRegex(core.SetupError,'WINESERVER'):
-            self.observe_game()
-
-    def test_routing_multiple_running_prefixes_rejected(self):
-        import shutil
-        shutil.copytree(self.proc/'100',self.proc/'200',symlinks=True)
-        other=self.root/'other'/core.APPID
-        (other/'pfx/drive_c').mkdir(parents=True);(other/'pfx/system.reg').touch()
-        env=self.proc/'200/environ';env.write_text(env.read_text().replace(str(self.targets[0].compat),str(other)))
-        with self.assertRaisesRegex(core.SetupError,'Kein eindeutiger'):
-            self.observe_game()
-
-    def test_routing_hardlinks_disambiguated_by_live_path(self):
-        other=self.root/'shadow';b=other/'files/bin-arm64';b.mkdir(parents=True)
-        os.link(self.proton/'files/bin-arm64/wine',b/'wine')
-        os.link(self.proton/'files/bin-arm64/wineserver',b/'wineserver')
-        exe=self.proc/'100/exe';exe.unlink();exe.symlink_to(b/'wine')
-        self.assertEqual(self.observe_game([self.proton,other]).proton,other)
-
-    def test_routing_changes_and_expired_evidence_rejected(self):
-        proof=self.targets[0].evidence
-        proof.captured-=1801
-        with self.assertRaisesRegex(core.SetupError,'30 Minuten'):
-            routing.validate_targets(self.plan)
-        self.targets[0].evidence=self.observe_game()
-        self.set_mapping()
-        with self.assertRaisesRegex(core.SetupError,'geändert'):
-            routing.validate_targets(self.plan)
-
-    @patch('core.require_stopped')
-    def test_routing_changed_build_stops_before_any_backup(self,_):
-        (self.proton/'files/bin-arm64/wineserver').write_text('# changed\n')
-        with self.assertRaisesRegex(core.SetupError,'geändert'):
-            core.execute(self.plan,self.runner)
-        self.assertFalse(self.plan.backup_root.exists())
-
-    @patch('core.require_stopped')
-    def test_routing_manual_path_without_evidence_cannot_install(self,_):
-        self.targets[0].evidence=None
-        with self.assertRaisesRegex(core.SetupError,'noch nicht'):
-            core.execute(self.plan,self.runner)
-        self.assertFalse(self.plan.backup_root.exists())
-
     def test_runtime_skip_and_wrong_arch_record_fails(self):
         target=self.targets[0];(target.compat/'pfx/winetricks.log').write_text('dotnet8\ndotnetdesktop8\nvcrun6\nxaudio29\n')
         out='Microsoft.NETCore.App 8.0.30 [x]\nMicrosoft.WindowsDesktop.App 8.0.30 [x]\n'
@@ -374,6 +255,60 @@ class Execution(TemporaryFixture):
         self.assertNotIn('winetricks -q',self.log.getvalue())
         with patch('core.reports',return_value=[(0x14c,out)]):
             with self.assertRaises(core.SetupError):core.install_runtimes(target,self.plan,self.runner)
+
+
+class ManualProfile(TemporaryFixture):
+    def make_proton(self, name):
+        p=self.root/'.local/share/droiddeck-esync/dist'/name
+        b=p/'files/bin-arm64';b.mkdir(parents=True)
+        for name in ['wine','wineserver']:
+            (b/name).write_text('#!/bin/sh\n');(b/name).chmod(0o755)
+        return p
+
+    def test_fixed_locations_ignore_other_library_and_stock_proton(self):
+        known=self.make_proton(setup_profile.KNOWN_BUILD)
+        self.make_proton('newer-build')
+        p=setup_profile.load_profile(self.root, self.root)
+        self.assertEqual(p.proton,known)
+        self.assertEqual(p.steam,self.root/'.local/share/Steam')
+        self.assertEqual(p.game_compat,p.steam/'steamapps/compatdata/2552430')
+        self.assertEqual(p.compat('4018651221'),p.steam/'steamapps/compatdata/4018651221')
+        self.assertEqual(p.game,self.root/'Games/Windows/steamapps/common'/setup_profile.GAME_FOLDER)
+
+    def test_unique_esync_after_update_and_no_guess_between_multiple(self):
+        only=self.make_proton('replacement')
+        self.assertEqual(setup_profile.load_profile(self.root,self.root).require_proton(),only)
+        self.make_proton('another')
+        with self.assertRaisesRegex(core.SetupError,'Kein eindeutiger'):
+            setup_profile.load_profile(self.root,self.root).require_proton()
+
+    def test_existing_config_overrides_defaults_without_execution(self):
+        p=self.make_proton('configured')
+        config=self.root/'config.env'
+        config.write_text('KH_APPID=2552430\nKH_STEAM_ROOT="$HOME/custom Steam"\nKH_COMPATDATA="$KH_STEAM_ROOT/steamapps/compatdata/$KH_APPID"\nKH_PROTON_ROOT="'+str(p)+'"\nKH_REGISTRY_BAT=""\n')
+        result=setup_profile.load_profile(self.root,self.root)
+        self.assertEqual(result.steam,self.root/'custom Steam')
+        self.assertEqual(result.game_compat,result.steam/'steamapps/compatdata/2552430')
+        self.assertEqual(result.require_proton(),p)
+        config.write_text('KH_PROTON_ROOT="$(touch '+str(self.root/'executed')+')"\n')
+        with self.assertRaises(core.SetupError):setup_profile.load_profile(self.root,self.root)
+        self.assertFalse((self.root/'executed').exists())
+
+    def test_missing_configured_build_never_falls_back(self):
+        self.make_proton(setup_profile.KNOWN_BUILD)
+        (self.root/'config.env').write_text('KH_PROTON_ROOT="/missing/proton"\n')
+        with self.assertRaisesRegex(core.SetupError,'config.env'):
+            setup_profile.load_profile(self.root,self.root).require_proton()
+
+    def test_missing_default_prefix_does_not_use_other_library(self):
+        self.make_proton(setup_profile.KNOWN_BUILD)
+        other=self.root/'Games/Windows/steamapps/compatdata/2552430/pfx'
+        (other/'drive_c').mkdir(parents=True);(other/'system.reg').touch()
+        profile=setup_profile.load_profile(self.root,self.root)
+        with patch('terminal.load_profile',return_value=profile), patch('terminal.accounts',return_value=['123']), patch('builtins.input',side_effect=['','','','','','']), patch('builtins.print'):
+            with self.assertRaisesRegex(core.SetupError,'vorgesehenen Ort'):
+                terminal.build_plan(self.root)
+        self.assertFalse(profile.game_compat.exists())
 
 
 class Startup(TemporaryFixture):
