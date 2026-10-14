@@ -138,7 +138,7 @@ def safe_unpack(archive, root):
         with plain.open('wb') as output:
             # Convert the archive; Python performs the actual path-checked extraction.
             result = subprocess.run([bsdtar,'-cf','-','--format=ustar','@'+str(archive)],
-                                    stdout=output, stderr=subprocess.PIPE, timeout=120)
+                                    stdout=output, stderr=subprocess.PIPE, timeout=120, env=host_env())
         if result.returncode:
             raise SetupError('Cannot decompress helper package: '+result.stderr.decode(errors='replace')[-1000:])
         source = tarfile.open(plain, 'r:')

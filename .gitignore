@@ -7,3 +7,4 @@ __pycache__/
 *.dmp
 linux-setup/config.env
 linux-setup/tools/
+build-native-venv/

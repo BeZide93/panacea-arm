@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 NAMES = ['README.md', 'README-DE.md', 'config.example.env', 'common.sh',
          '00-host-tools.sh', '01-check.sh', '02-install-runtimes.sh',
          '03-add-registry.sh', '04-launch-options.sh', 'start-setup.sh',
-         'Panacea-Setup.desktop', 'assistant/core.py', 'assistant/host_tools.py', 'assistant/gui.py', 'assistant/terminal.py', 'assistant/setup_profile.py', 'assistant/web.py', 'assistant/web.html']
+         'Panacea-Setup.desktop', 'assistant/core.py', 'assistant/host_tools.py', 'assistant/gui.py', 'assistant/native.py', 'assistant/terminal.py', 'assistant/setup_profile.py', 'assistant/web.py', 'assistant/web.html']
 
 
 def main():

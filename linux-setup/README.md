@@ -8,16 +8,22 @@ This kit reconstructs the dependency setup used on October 12, 2026. It is not a
 
 ## Graphical setup for DroidDeck
 
-1. Download and extract the [complete setup ZIP](../packages/Panacea-ARM-Linux-Setup.zip?raw=true) **inside DroidDeck's Linux desktop**.
-2. Close Steam, Kingdom Hearts, OpenKH and other Windows applications. Double-click **`Panacea-Setup.desktop`** in the extracted folder. If the file manager asks, allow execution / mark the launcher as trusted. Keep the entire folder together.
-3. Select your Steam account and enable **OpenKH** if you also want to configure its separate shortcut/prefix. Review the paths from the working manual setup below. No game launch or live process recognition is required; keep Steam and Windows applications closed throughout.
-4. Use **Auswahl prüfen** in the browser, review the summary, tick the confirmation box and click **Jetzt einrichten** (native Tk: **Einrichten**). The assistant backs up each selected prefix, the replaced DLL and changed Steam files before installation. Reopen Steam after it finishes.
+### Standalone setup window (recommended)
 
-The German-language form can check/install missing runtimes, install the bundled main `version.dll`, run an explicitly selected original `add_registry.bat` in the selected prefix, and merge Steam launch options. Uncheck operations you do not need. For OpenKH alone, uncheck Kingdom Hearts and DLL installation. OpenKH must already exist as a Steam shortcut and have been started once. There is no fixed shortcut AppID.
+1. Open [GitHub Actions → Build and validate](https://github.com/BeZide93/panacea-arm/actions/workflows/build.yml) and select a successful run for the intended branch. While this PR is open, use **feat/droiddeck-setup-assistant**.
+2. Download **Panacea-DroidDeck-Native-Setup** under **Artifacts** (GitHub sign-in required). Extract the outer artifact ZIP, then fully extract **Panacea-DroidDeck-Native-Setup.zip**.
+3. In DroidDeck's Linux desktop, close Steam and Windows applications, then double-click **Panacea-Setup.desktop**. Allow execution if prompted. Keep the entire package folder together.
+4. Follow **Willkommen → Komponenten → Prüfen → Installieren** (Welcome → Components → Review → Install). Select the account, optionally enable OpenKH and review the summary. Only **Installieren** starts changes. Progress, errors and completion stay in the same window.
 
-Python 3 is supplied by DroidDeck's Linux tools. With Tk available, the native form opens. **Without Tk, the launcher automatically opens a graphical interface in the local browser** — no Tk installation, extra Python packages or terminal answers are required to open and use the form. It has the same fixed profile, account/shortcut selection, operation checkboxes, backup directory, review dialog and installation backend. Progress, errors and setup.log are shown on the page. Use **Assistent beenden** after completion; keep the starter window open while installing. If the browser does not open automatically, the starter prints the local URL.
+The standalone package contains a native Linux ARM64 program with bundled Python and Tcl/Tk for the window. It opens neither a browser nor a terminal and needs no separate host Tk installation. It is not a Windows executable: setup needs direct access to Linux paths, Proton and Steam configuration. DroidDeck's existing Linux base tools, including `python3` for the desktop launcher and manual scripts, remain required.
 
-Explicit browser mode: `bash start-setup.sh --web`. The text assistant remains available with `bash start-setup.sh --terminal`. The browser server binds only to `127.0.0.1` on a random port and protects its API with a per-session token and origin/host checks. Opening the page or reviewing the selection does not start installation; **Jetzt einrichten** requires a reviewed selection. Downloads for missing runtimes still require Internet access.
+The starter temporarily extracts its runtime under `~/.local/share/panacea-arm/native/session.*`, supporting Android download storage without executable permissions or symlinks. Normal exit removes that temporary directory. Game files, prefixes and backups keep their existing locations. Optional **config.env** stays beside **Panacea-Setup.desktop** in the extracted package. Startup failures are recorded in `~/.local/state/panacea-arm/native-start.log`, reset on each launch.
+
+### Small script kit / alternative interfaces
+
+[Panacea-ARM-Linux-Setup.zip](../packages/Panacea-ARM-Linux-Setup.zip?raw=true) remains the small **script kit**, not the standalone native package. It uses the same installation backend. Its launcher uses existing Python/Tk or falls back to the local browser. `bash start-setup.sh --web` explicitly opens the browser; `bash start-setup.sh --terminal` opens the text assistant. The browser server stays on `127.0.0.1`, protected by a session token and origin checks.
+
+All interfaces offer runtime checks/installation, the bundled main `version.dll`, an explicitly selected original `add_registry.bat` and Steam launch options. For OpenKH only, uncheck Kingdom Hearts and DLL installation. OpenKH must already exist as a Steam shortcut and have been started once; its AppID comes from the selected account. Steam and Windows applications stay closed throughout, with no live recognition. Reviewing alone installs nothing. Selected prefixes, replaced DLLs and changed Steam files are backed up before installation.
 
 **Locally installed helpers:** The desktop launcher, assistant checks and installer commands explicitly include `~/.local/bin` in their search path, just like the working manual setup. An existing `~/.local/bin/cabextract` is reused without `sudo` or package installation, even when the desktop did not load your shell profile. `setup.log` records the selected `cabextract` path.
 

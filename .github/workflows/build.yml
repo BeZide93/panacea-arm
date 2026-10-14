@@ -75,3 +75,44 @@ jobs:
             dist/SHA256SUMS.txt
             dist/BUILD-MANIFEST.json
             dist/EXPORTS.txt
+
+  native-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-tk xvfb xauth desktop-file-utils
+          /usr/bin/python3 -m venv --system-site-packages build-native-venv
+          build-native-venv/bin/pip install 'pyinstaller==6.22.3'
+      - name: Build standalone ARM64 wizard
+        run: |
+          python3 scripts/package_linux_setup.py
+          build-native-venv/bin/pyinstaller --noconfirm --clean --onedir --name Panacea-Setup --paths linux-setup/assistant --distpath dist --workpath build/native --specpath build linux-setup/assistant/native.py
+          mkdir -p dist/Panacea-Setup/licenses
+          for package in python3.12 libpython3.12-stdlib tcl8.6 tk8.6 libtcl8.6 libtk8.6; do
+            cp "/usr/share/doc/$package/copyright" "dist/Panacea-Setup/licenses/$package.txt"
+          done
+          cp build-native-venv/lib/python3.12/site-packages/pyinstaller-*.dist-info/licenses/COPYING.txt dist/Panacea-Setup/licenses/PyInstaller.txt
+          python3 scripts/package_native_setup.py
+      - name: Test packaged wizard without host Tk
+        run: |
+          sudo apt-get remove -y python3-tk
+          if /usr/bin/python3 -c 'import tkinter' 2>/dev/null; then exit 1; fi
+          desktop-file-validate linux-setup/native/Panacea-Setup.desktop
+          bash -n linux-setup/native/start-native.sh
+          unzip -q dist/Panacea-DroidDeck-Native-Setup.zip -d build/native-test
+          export PANACEA_SETUP_KIT="$PWD/build/native-test/Panacea-DroidDeck-Native-Setup"
+          mkdir -p build/native-home
+          export HOME="$PWD/build/native-home"
+          xvfb-run -a bash "$PANACEA_SETUP_KIT/start-native.sh" --smoke-test
+          cat "$HOME/.local/state/panacea-arm/native-start.log"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Panacea-DroidDeck-Native-Setup
+          if-no-files-found: error
+          path: |
+            dist/Panacea-DroidDeck-Native-Setup.zip
+            dist/Panacea-DroidDeck-Native-Setup.sha256

@@ -514,4 +514,16 @@ class Startup(TemporaryFixture):
         self.assertNotIn('[1]',prompt.call_args_list[0].args[0])
 
 
+class FrozenEnvironment(unittest.TestCase):
+    def test_external_programs_do_not_inherit_bundled_libraries(self):
+        from unittest.mock import patch
+        with patch('core.sys.frozen',True,create=True), patch.dict('os.environ',{'LD_LIBRARY_PATH':'/bundle/lib','LD_LIBRARY_PATH_ORIG':'/host/lib','TCL_LIBRARY':'/bundle/tcl','TK_LIBRARY':'/bundle/tk'}):
+            env=core.host_env()
+            self.assertEqual(env['LD_LIBRARY_PATH'],'/host/lib')
+            self.assertNotIn('TCL_LIBRARY',env)
+            self.assertNotIn('TK_LIBRARY',env)
+        with patch('core.sys.frozen',True,create=True), patch.dict('os.environ',{'LD_LIBRARY_PATH':'/bundle/lib'},clear=True):
+            self.assertNotIn('LD_LIBRARY_PATH',core.host_env())
+
+
 if __name__=='__main__':unittest.main()

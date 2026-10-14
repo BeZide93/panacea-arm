@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from core import (APPID, Plan, Runner, SetupError, Target, accounts, execute,
-                  require_stopped, setup_lock, shortcuts, plan_summary)
+                  require_stopped, setup_lock, shortcuts, plan_summary, host_env)
 from setup_profile import load_profile
 
 
@@ -29,47 +29,111 @@ class Assistant:
                       [('game',True),('openkh',False),('runtimes',True),('dll',True),('launch',True)]}
         self.vars['backup'].set(str(self.home/'panacea-prefix-backups'))
         self.vars['batch_target'].set(APPID)
-        outer = ttk.Frame(window, padding=12); outer.pack(fill='both', expand=True)
-        ttk.Label(outer, text='Panacea / OpenKH einrichten', font=('',16,'bold')).pack(anchor='w')
-        ttk.Label(outer, text='Steam, Spiel und Windows-Anwendungen vor der Installation vollständig schließen.\n'
-                             'DroidDeck, Steam sowie Spiel/OpenKH müssen bereits installiert und einmal gestartet worden sein.').pack(anchor='w', pady=(4,10))
-        form = ttk.Frame(outer); form.pack(fill='x'); form.columnconfigure(1,weight=1)
-        self.form = form
-        self.row = 0
+        self.page = 0
+        self.reviewed = None
         self.widgets = []
+        self.status = tk.StringVar(value='')
+        style = ttk.Style(window)
+        style.theme_use('clam')
+        style.configure('TButton', padding=(14, 8))
+        style.configure('TCheckbutton', padding=5)
+        style.configure('Title.TLabel', font=('', 20, 'bold'))
+        window.geometry('980x680')
+        window.minsize(760, 540)
+        shell = ttk.Frame(window, padding=18); shell.pack(fill='both', expand=True)
+        ttk.Label(shell, text='Panacea · DroidDeck Setup', style='Title.TLabel').pack(anchor='w')
+        self.steps = ttk.Label(shell, text=''); self.steps.pack(anchor='w', pady=(8,12))
+        ttk.Separator(shell).pack(fill='x')
+        self.body = ttk.Frame(shell); self.body.pack(fill='both', expand=True, pady=12)
+        self.pages = [ttk.Frame(self.body) for _ in range(4)]
+        welcome, components, review, progress_page = self.pages
+        ttk.Label(welcome, text='Willkommen', font=('',16,'bold')).pack(anchor='w', pady=(14,18))
+        ttk.Label(welcome, text='Dieser Assistent richtet Panacea und optional OpenKH in deiner bestehenden\n'
+                  'DroidDeck-Installation ein. Die bekannten Pfade werden übernommen.\n\n'
+                  '• Fehlende Linux-Hilfsprogramme und Windows-Runtimes einrichten\n'
+                  '• Die angepasste version.dll einsetzen\n'
+                  '• Steam-Startoptionen konfigurieren\n\n'
+                  'Vor Änderungen werden Sicherungen angelegt.\n'
+                  'Steam, Spiel und Windows-Anwendungen jetzt vollständig schließen.\n\n'
+                  'DroidDeck, Steam, das Spiel und optional OpenKH müssen bereits installiert\n'
+                  'und einmal gestartet worden sein. Downloads benötigen Internet.',
+                  justify='left', wraplength=700).pack(anchor='w')
+        # Scrollable components keep navigation visible on DroidDeck's short display.
+        canvas = tk.Canvas(components, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(components, orient='vertical', command=canvas.yview)
+        scrollbar.pack(side='right',fill='y'); canvas.pack(side='left',fill='both',expand=True)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        self.form = ttk.Frame(canvas, padding=(0,0,12,0)); self.form.columnconfigure(1, weight=1)
+        item = canvas.create_window(0,0,window=self.form,anchor='nw')
+        self.form.bind('<Configure>',lambda _:canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.bind('<Configure>',lambda e:canvas.itemconfigure(item,width=e.width))
+        self.row = 0
         self.field('Steam-Verzeichnis', 'steam', combo=True)
-        button = ttk.Button(form, text='Installationen suchen / neu einlesen', command=self.detect)
-        button.grid(row=self.row,column=1,sticky='w',pady=4); self.widgets.append(button); self.row += 1
         self.account = self.field('Steam-Konto (userdata-ID)', 'account', combo=True)
         self.account.bind('<<ComboboxSelected>>', lambda _: self.read_account())
         self.check('Kingdom Hearts einrichten', 'game')
         self.field('Spielordner', 'game', combo=True)
-        self.game_prefix = self.field('KH compatdata (ohne /pfx)', 'game_prefix', combo=True, browse=False)
-        self.game_proton = self.field('KH ARM64-Proton', 'game_proton', combo=True,browse=False)
+        self.game_prefix = self.field('KH compatdata (ohne /pfx)', 'game_prefix', combo=True)
+        self.game_proton = self.field('KH ARM64-Proton', 'game_proton', combo=True)
         self.check('OpenKH zusätzlich / separat einrichten', 'openkh')
         self.shortcut = self.field('OpenKH Steam-Verknüpfung', 'shortcut',combo=True)
         self.shortcut.bind('<<ComboboxSelected>>',lambda _: self.choose_shortcut())
-        self.openkh_prefix = self.field('OpenKH compatdata (ohne /pfx)', 'openkh_prefix',combo=True,browse=False)
-        self.openkh_proton = self.field('OpenKH ARM64-Proton', 'openkh_proton',combo=True,browse=False)
+        self.openkh_prefix = self.field('OpenKH compatdata (ohne /pfx)', 'openkh_prefix',combo=True)
+        self.openkh_proton = self.field('OpenKH ARM64-Proton', 'openkh_proton',combo=True)
+        for key,label in [('runtimes','Fehlende Runtimes installieren'),('dll','Main version.dll einsetzen'),('launch','Steam-Startoptionen einrichten')]:
+            self.check(label,key)
         self.field('Backup-Verzeichnis', 'backup')
         self.field('Optional: originale add_registry.bat', 'batch',file=True)
         self.batch_target = self.field('Registry-Batch ausführen in AppID', 'batch_target',combo=True)
         self.batch_target['values'] = [APPID]
-        options = ttk.Frame(outer); options.pack(fill='x',pady=8)
-        for key,label in [('runtimes','Fehlende Runtimes installieren'),('dll','Main version.dll einsetzen'),('launch','Steam-Startoptionen einrichten')]:
-            widget = ttk.Checkbutton(options,text=label,variable=self.flags[key]);widget.pack(side='left',padx=(0,12));self.widgets.append(widget)
-        buttons = ttk.Frame(outer);buttons.pack(fill='x')
-        for text,command in [('Auswahl prüfen',self.review),('Einrichten',self.install)]:
-            button=ttk.Button(buttons,text=text,command=command);button.pack(side='left',padx=(0,8));self.widgets.append(button)
-        ttk.Button(buttons,text='Ordner mit Setup-Log öffnen',command=self.open_log).pack(side='left')
-        self.status = tk.StringVar(value='Bereit. Die Auswahl wird vor Änderungen noch einmal angezeigt.')
-        ttk.Label(outer,textvariable=self.status,wraplength=900).pack(anchor='w',pady=6)
-        self.output = tk.Text(outer,height=10,wrap='word',state='disabled')
-        self.output.pack(fill='both',expand=True)
-        self.progress = ttk.Progressbar(outer, mode='indeterminate');self.progress.pack(fill='x',pady=(6,0))
+        ttk.Button(self.form,text='Profil neu einlesen',command=self.detect).grid(row=self.row,column=1,sticky='w',pady=8)
+        ttk.Label(review,text='Bereit zur Installation',font=('',16,'bold')).pack(anchor='w',pady=(0,10))
+        self.review_text = self.text_area(review)
+        ttk.Label(review,text='Erst „Installieren“ führt diese Änderungen aus. Mit „Zurück“ kannst du die Auswahl ändern.',
+                  wraplength=700).pack(anchor='w',pady=(10,0))
+        self.result = ttk.Label(progress_page,text='Installation läuft',font=('',16,'bold'))
+        self.result.pack(anchor='w',pady=(0,10))
+        self.output = self.text_area(progress_page)
+        self.progress = ttk.Progressbar(progress_page, mode='indeterminate'); self.progress.pack(fill='x',pady=10)
+        ttk.Label(progress_page,text='Setup-Log: '+str(self.state/'setup.log'),wraplength=700).pack(anchor='w')
+        ttk.Label(shell,textvariable=self.status,wraplength=720,foreground='#9a3412').pack(anchor='w',pady=(0,8))
+        ttk.Separator(shell).pack(fill='x')
+        nav = ttk.Frame(shell); nav.pack(fill='x',pady=(12,0))
+        self.cancel_button = ttk.Button(nav,text='Abbrechen',command=self.close); self.cancel_button.pack(side='left')
+        self.next_button = ttk.Button(nav,text='Weiter >',command=self.next); self.next_button.pack(side='right')
+        self.back_button = ttk.Button(nav,text='< Zurück',command=self.back); self.back_button.pack(side='right',padx=8)
         window.protocol('WM_DELETE_WINDOW',self.close)
         window.after(100,self.poll)
         self.detect()
+        self.show_page(0)
+
+    def text_area(self,parent):
+        frame=ttk.Frame(parent);frame.pack(fill='both',expand=True)
+        text=tk.Text(frame,height=8,wrap='word',state='disabled',padx=10,pady=10)
+        scroll=ttk.Scrollbar(frame,command=text.yview)
+        text.configure(yscrollcommand=scroll.set)
+        scroll.pack(side='right',fill='y');text.pack(side='left',fill='both',expand=True)
+        return text
+
+    def show_page(self,page):
+        self.page=page
+        for panel in self.pages:panel.pack_forget()
+        self.pages[page].pack(fill='both',expand=True)
+        labels=['Willkommen','Komponenten','Prüfen','Installieren']
+        self.steps.configure(text='   ›   '.join(('● ' if i==page else '')+name for i,name in enumerate(labels)))
+        self.back_button.configure(state='normal' if page in (1,2) else 'disabled')
+        self.next_button.configure(text='Installieren' if page==2 else 'Weiter >',state='disabled' if page==3 else 'normal')
+
+    def next(self):
+        if self.busy:return
+        self.status.set('')
+        if self.page==0:self.show_page(1)
+        elif self.page==1:self.review()
+        elif self.page==2:self.install()
+
+    def back(self):
+        if not self.busy and self.page in (1,2):
+            self.reviewed=None;self.status.set('');self.show_page(self.page-1)
 
     def field(self,label,key,combo=False,browse=None,file=False):
         ttk.Label(self.form,text=label).grid(row=self.row,column=0,sticky='w',pady=2,padx=(0,10))
@@ -114,7 +178,7 @@ class Assistant:
             self.read_account()
             self.display(p.note)
             self.status.set('Manuelles DroidDeck-Profil geladen. Explizite Pfadänderungen über config.env; kein Bibliothekswechsel.')
-        except (SetupError,OSError,UnicodeError) as e:messagebox.showerror('Profil laden',str(e))
+        except (SetupError,OSError,UnicodeError) as e:self.status.set('Profil laden: '+str(e))
 
     def read_account(self):
         self.shortcut_map={};self.vars['shortcut'].set('');self.vars['openkh_prefix'].set('');self.vars['openkh_proton'].set('')
@@ -163,18 +227,25 @@ class Assistant:
 
     def review(self):
         try:
-            plan=self.plan();text=self.summary(plan)
-            self.display(text);messagebox.showinfo('Auswahl prüfen — noch keine Installation',text)
-        except (SetupError,OSError,UnicodeError,ValueError) as e:messagebox.showerror('Auswahl prüfen',str(e))
+            self.reviewed=self.plan();text=self.summary(self.reviewed)
+            self.review_text.configure(state='normal');self.review_text.delete('1.0','end')
+            self.review_text.insert('end',text);self.review_text.configure(state='disabled')
+            self.show_page(2)
+        except (SetupError,OSError,UnicodeError,ValueError) as e:
+            self.reviewed=None;self.status.set(str(e))
 
     def install(self):
+        if self.busy or self.page!=2 or self.reviewed is None:return
         try:
-            plan=self.plan();require_stopped();summary=self.summary(plan)
-            if not messagebox.askokcancel('Einrichtung starten?',summary+'\n\nDie ausgewählten Änderungen jetzt ausführen?'):return
+            plan=self.plan()
+            if plan != self.reviewed:raise SetupError('Auswahl geändert. Bitte zurückgehen und erneut prüfen.')
+            require_stopped()
         except (SetupError,OSError,UnicodeError,ValueError) as e:
-            messagebox.showerror('Einrichtung',str(e));return
+            self.status.set(str(e));return
         self.busy=True
-        for w in self.widgets:w.configure(state='disabled')
+        self.show_page(3)
+        self.cancel_button.configure(state='disabled')
+        self.output.configure(state='normal');self.output.delete('1.0','end');self.output.configure(state='disabled')
         self.progress.start();self.status.set('Einrichtung läuft. Installer können einige Minuten benötigen. Fenster bitte geöffnet lassen.')
         threading.Thread(target=self.worker,args=(plan,),daemon=False).start()
 
@@ -198,23 +269,26 @@ class Assistant:
                 if kind=='log':self.display(text)
                 else:
                     self.busy=False;self.progress.stop()
-                    for w in self.widgets:w.configure(state='readonly' if isinstance(w,ttk.Combobox) else 'normal')
+                    self.cancel_button.configure(state='normal',text='Schließen')
                     if kind=='done':
-                        self.status.set('Einrichtung abgeschlossen. Jetzt Steam öffnen und Spiel/OpenKH testen.')
-                        messagebox.showinfo('Fertig','Backup: '+text+'\n\nSteam neu öffnen und Spiel/OpenKH testen.\nDie Runtime-Prüfung ersetzt keinen Spieltest.')
+                        self.result.configure(text='Einrichtung abgeschlossen')
+                        self.status.set('Jetzt Steam öffnen und Spiel/OpenKH testen.')
+                        self.display('Backup: '+text+'\nDie Runtime-Prüfung ersetzt keinen Spieltest.')
                     else:
-                        self.status.set('Einrichtung abgebrochen. Vorhandene Backups bleiben erhalten; Details im Setup-Log.')
-                        messagebox.showerror('Einrichtung fehlgeschlagen',text+'\n\nLog: '+str(self.state/'setup.log')+'\nEs wird kein Backup automatisch zurückgespielt.')
+                        self.result.configure(text='Einrichtung fehlgeschlagen')
+                        self.status.set('Details im Setup-Log. Vorhandene Backups bleiben erhalten.')
+                        self.display(text+'\nEs wird kein Backup automatisch zurückgespielt.')
+
         except queue.Empty:pass
         self.window.after(100,self.poll)
 
     def open_log(self):
         import subprocess
         self.state.mkdir(parents=True,exist_ok=True)
-        subprocess.Popen(['xdg-open',str(self.state)])
+        subprocess.Popen(['xdg-open',str(self.state)],env=host_env())
 
     def close(self):
-        if self.busy:messagebox.showinfo('Einrichtung läuft','Bitte die laufende Installation abwarten. Ein Abbruch während eines Windows-Installers kann einen unvollständigen Prefix hinterlassen.')
+        if self.busy:self.status.set('Bitte die laufende Installation abwarten. Das Fenster bleibt bis zum Abschluss geöffnet.')
         else:self.window.destroy()
 
 

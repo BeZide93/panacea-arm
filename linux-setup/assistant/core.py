@@ -19,12 +19,14 @@ import shlex
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 
 APPID = '2552430'
 DLL_SHA256 = 'c7d29191d69f5e132f5ca4a0a21d9ae75cd5f803a198ffa3f5f0220dc67f6360'
 WINETRICKS_SHA256 = '672a1ff4442e8691a3ffc0e6860137e201a1d1227e9b3044245f1731e9e9837e'
-KIT = Path(__file__).resolve().parents[1]
+KIT = (Path(os.environ['PANACEA_SETUP_KIT']).resolve() if getattr(sys, 'frozen', False)
+       else Path(__file__).resolve().parents[1])
 
 
 class SetupError(Exception):
@@ -45,6 +47,13 @@ def digest(data):
 def host_env():
     """The manual setup's user-local tools, also for direct Python/desktop starts."""
     env = os.environ.copy()
+    if getattr(sys, 'frozen', False):
+        # PyInstaller's private libraries must not leak into Wine/host helpers.
+        original = env.pop('LD_LIBRARY_PATH_ORIG', None)
+        if original is None:env.pop('LD_LIBRARY_PATH', None)
+        else:env['LD_LIBRARY_PATH'] = original
+        env.pop('TCL_LIBRARY', None)
+        env.pop('TK_LIBRARY', None)
     local_bin = str(Path.home()/'.local/bin')
     entries = env.get('PATH', os.defpath).split(os.pathsep)
     env['PATH'] = os.pathsep.join([local_bin] + [p for p in entries if p != local_bin])
