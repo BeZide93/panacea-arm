@@ -23,25 +23,25 @@ def read_config(path, home):
             continue
         match = re.fullmatch(r'(KH_[A-Z_]+)=(.*)', line)
         if not match or match[1] not in KEYS:
-            raise SetupError(f'config.env Zeile {number}: nur einfache KH_…-Zuweisungen unterstützt; keine Shell-Befehle.')
+            raise SetupError(f'config.env line {number}: only simple KH_… assignments are supported; no shell commands.')
         key, raw = match.groups()
         try:
             parts = shlex.split(raw, comments=True)
         except ValueError as error:
-            raise SetupError(f'config.env Zeile {number}: ungültige Anführungszeichen.') from error
+            raise SetupError(f'config.env line {number}: invalid quoting.') from error
         if len(parts) != 1 or '$(' in parts[0] or '`' in parts[0]:
-            raise SetupError(f'config.env Zeile {number}: einfacher Wert erforderlich; keine Befehlsauswertung.')
+            raise SetupError(f'config.env line {number}: a simple value is required; no command evaluation.')
         value = parts[0]
         if not raw.startswith("'"):
             def expand(m):
                 variable = m[1] or m[2]
                 if variable not in values:
-                    raise SetupError(f'config.env: unbekannte Variable {variable}.')
+                    raise SetupError(f'config.env: unknown variable {variable}.')
                 return values[variable]
             value = re.sub(r'\$\{([A-Za-z_][A-Za-z_0-9]*)\}|\$([A-Za-z_][A-Za-z_0-9]*)', expand, value)
         values[key] = selected[key] = value
     if selected.get('KH_APPID', APPID) != APPID:
-        raise SetupError('Der Assistent erwartet KH_APPID=2552430. OpenKH wird separat über seine Steam-Verknüpfung gewählt.')
+        raise SetupError('The assistant requires KH_APPID=2552430. Select OpenKH separately using its Steam shortcut.')
     return selected
 
 
@@ -69,7 +69,7 @@ def load_profile(home, kit=KIT):
     def path(key, default):
         p = Path(values.get(key, str(default)))
         if not p.is_absolute():
-            raise SetupError(f'{key}: absoluter Pfad erforderlich.')
+            raise SetupError(f'{key}: an absolute path is required.')
         return p
     steam = path('KH_STEAM_ROOT', home/'.local/share/Steam')
     compat = path('KH_COMPATDATA', steam/'steamapps/compatdata'/APPID)
@@ -79,14 +79,14 @@ def load_profile(home, kit=KIT):
     known = dist/KNOWN_BUILD
     if 'KH_PROTON_ROOT' in values:
         proton = path('KH_PROTON_ROOT', known)
-        note = 'Proton aus deiner config.env. Bei fehlendem Build KH_PROTON_ROOT ausdrücklich aktualisieren.'
+        note = 'Proton from your config.env. Explicitly update KH_PROTON_ROOT if the build is missing.'
     elif valid_proton(known):
         proton = known
-        note = 'Proton aus der bisher funktionierenden manuellen Einrichtung.'
+        note = 'Proton from the previously working manual setup.'
     else:
         candidates = [p for p in sorted(dist.glob('*')) if valid_proton(p)]
         proton = candidates[0] if len(candidates) == 1 else None
-        note = ('Einziger vorhandener ARM64-Build im vorgesehenen droiddeck-esync/dist-Verzeichnis.' if proton else
-                'Kein eindeutiger esync-Build am vorgesehenen Ort. In config.env KH_PROTON_ROOT auf den gewünschten '
-                'vorhandenen ARM64-Build setzen. Kein automatischer Wechsel zu Steams anderer Proton-Installation.')
+        note = ('The only ARM64 build in the expected droiddeck-esync/dist directory.' if proton else
+                'No unique esync build at the expected location. Set KH_PROTON_ROOT in config.env to the intended '
+                'existing ARM64 build. There is no automatic switch to another Steam Proton installation.')
     return Profile(steam, game, compat, backup, proton, note)

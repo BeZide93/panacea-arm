@@ -213,7 +213,7 @@ class Execution(TemporaryFixture):
 
     @patch('core.require_stopped')
     def test_terminal_confirmation_uses_real_backups_and_installer(self, _):
-        with patch('terminal.require_stopped'), patch('builtins.input',return_value='JA'), patch('builtins.print'):
+        with patch('terminal.require_stopped'), patch('builtins.input',return_value='YES'), patch('builtins.print'):
             terminal.review_and_install(self.plan,self.root/'state')
         self.assertEqual(core.digest((self.game/'version.dll').read_bytes()),core.DLL_SHA256)
         self.assertTrue(list(self.plan.backup_root.glob('*/backup.json')))
@@ -360,7 +360,7 @@ class BrowserInterface(unittest.TestCase):
         self.assertIn('OpenKH',review['summary'])
         self.assertFalse(self.app.state_dir.exists())
         self.assertFalse(self.profile.backup.exists())
-        with self.assertRaisesRegex(core.SetupError,'zuerst'):
+        with self.assertRaisesRegex(core.SetupError,'first'):
             self.app.start('invalid')
 
     def test_profile_change_after_review_rejected(self):
@@ -376,7 +376,7 @@ class BrowserInterface(unittest.TestCase):
         review=self.app.review(self.data)
         path=self.fixture.cfg/'localconfig.vdf'
         path.write_bytes(path.read_bytes().replace(b'PROTON_LOG=1',b'PROTON_LOG=0'))
-        with self.assertRaisesRegex(core.SetupError,'geändert'):
+        with self.assertRaisesRegex(core.SetupError,'changed'):
             self.app.start(review['review_id'])
 
     def test_http_auth_origin_and_host_before_mutations(self):
@@ -408,10 +408,10 @@ class BrowserInterface(unittest.TestCase):
         with patch('web.threading.Thread') as thread:
             self.app.start(review['review_id'])
             self.assertTrue(self.app.busy)
-            with self.assertRaisesRegex(core.SetupError,'bereits'):self.app.start(review['review_id'])
+            with self.assertRaisesRegex(core.SetupError,'already'):self.app.start(review['review_id'])
             thread.assert_called_once()
         self.app.busy=False
-        with self.assertRaisesRegex(core.SetupError,'zuerst'):self.app.start(review['review_id'])
+        with self.assertRaisesRegex(core.SetupError,'first'):self.app.start(review['review_id'])
 
 
 class ManualProfile(TemporaryFixture):
@@ -436,7 +436,7 @@ class ManualProfile(TemporaryFixture):
         only=self.make_proton('replacement')
         self.assertEqual(setup_profile.load_profile(self.root,self.root).require_proton(),only)
         self.make_proton('another')
-        with self.assertRaisesRegex(core.SetupError,'Kein eindeutiger'):
+        with self.assertRaisesRegex(core.SetupError,'No unique'):
             setup_profile.load_profile(self.root,self.root).require_proton()
 
     def test_existing_config_overrides_defaults_without_execution(self):
@@ -463,7 +463,7 @@ class ManualProfile(TemporaryFixture):
         (other/'drive_c').mkdir(parents=True);(other/'system.reg').touch()
         profile=setup_profile.load_profile(self.root,self.root)
         with patch('terminal.load_profile',return_value=profile), patch('terminal.accounts',return_value=['123']), patch('builtins.input',side_effect=['','','','','','']), patch('builtins.print'):
-            with self.assertRaisesRegex(core.SetupError,'vorgesehenen Ort'):
+            with self.assertRaisesRegex(core.SetupError,'expected location'):
                 terminal.build_plan(self.root)
         self.assertFalse(profile.game_compat.exists())
 

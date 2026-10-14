@@ -11,9 +11,11 @@ This kit reconstructs the dependency setup used on October 12, 2026. It is not a
 ### Standalone setup window (recommended)
 
 1. Open [GitHub Actions → Build and validate](https://github.com/BeZide93/panacea-arm/actions/workflows/build.yml) and select a successful run for the intended branch. While this PR is open, use **feat/droiddeck-setup-assistant**.
-2. Download **Panacea-DroidDeck-Native-Setup** under **Artifacts** (GitHub sign-in required). Extract the outer artifact ZIP, then fully extract **Panacea-DroidDeck-Native-Setup.zip**.
+2. Download **Panacea-DroidDeck-Native-Setup** under **Artifacts** (GitHub sign-in required). Extract the downloaded ZIP **once**. It contains the ready-to-run **Panacea-DroidDeck-Native-Setup** folder, with no second setup ZIP.
 3. In DroidDeck's Linux desktop, close Steam and Windows applications, then double-click **Panacea-Setup.desktop**. Allow execution if prompted. Keep the entire package folder together.
-4. Follow **Willkommen → Komponenten → Prüfen → Installieren** (Welcome → Components → Review → Install). Select the account, optionally enable OpenKH and review the summary. Only **Installieren** starts changes. Progress, errors and completion stay in the same window.
+4. Follow **Welcome → Components → Review → Install**. Select the account, optionally enable OpenKH and review the summary. Only **Install** starts changes. Progress, errors and completion stay in the same window.
+
+All setup interfaces, confirmations and setup-generated messages are in English. Terminal mode requires typing **YES** for final confirmation.
 
 The standalone package contains a native Linux ARM64 program with bundled Python and Tcl/Tk for the window. It opens neither a browser nor a terminal and needs no separate host Tk installation. It is not a Windows executable: setup needs direct access to Linux paths, Proton and Steam configuration. DroidDeck's existing Linux base tools, including `python3` for the desktop launcher and manual scripts, remain required.
 

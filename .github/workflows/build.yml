@@ -103,8 +103,10 @@ jobs:
           if /usr/bin/python3 -c 'import tkinter' 2>/dev/null; then exit 1; fi
           desktop-file-validate linux-setup/native/Panacea-Setup.desktop
           bash -n linux-setup/native/start-native.sh
-          unzip -q dist/Panacea-DroidDeck-Native-Setup.zip -d build/native-test
-          export PANACEA_SETUP_KIT="$PWD/build/native-test/Panacea-DroidDeck-Native-Setup"
+          export PANACEA_SETUP_KIT="$PWD/dist/native-artifact/Panacea-DroidDeck-Native-Setup"
+          test -f "$PANACEA_SETUP_KIT/Panacea-Setup.desktop"
+          test -z "$(find dist/native-artifact -name '*.zip' -print)"
+          (cd "$PANACEA_SETUP_KIT" && sha256sum -c SHA256SUMS.txt)
           mkdir -p build/native-home
           export HOME="$PWD/build/native-home"
           xvfb-run -a bash "$PANACEA_SETUP_KIT/start-native.sh" --smoke-test
@@ -113,6 +115,4 @@ jobs:
         with:
           name: Panacea-DroidDeck-Native-Setup
           if-no-files-found: error
-          path: |
-            dist/Panacea-DroidDeck-Native-Setup.zip
-            dist/Panacea-DroidDeck-Native-Setup.sha256
+          path: dist/native-artifact/

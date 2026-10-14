@@ -17,6 +17,8 @@ try:
         root=tk.Tk();app=gui.Assistant(root);app.state=fixture.root/'gui-state'
         root.geometry('800x560');root.update()
         assert app.page==0 and not app.busy
+        assert app.next_button.cget('text')=='Next >'
+        assert root.tk.call('::msgcat::mclocale')=='en'
         app.next();root.update();assert app.page==1
         assert app.next_button.winfo_rooty()+app.next_button.winfo_height() <= root.winfo_rooty()+root.winfo_height()
         # Missing user selections remain on the components page, with an inline error.
@@ -30,6 +32,7 @@ try:
         assert not app.state.exists(), 'Review must not install or create a log'
         app.back();assert app.page==1 and app.reviewed is None
         app.review();assert app.page==2
+        assert app.next_button.cget('text')=='Install'
         # Closing is refused while installing; completion remains in the same window.
         app.install();assert app.busy and app.page==3
         app.close();assert root.winfo_exists()
@@ -37,7 +40,7 @@ try:
         while app.busy and time.monotonic()<deadline:
             root.update();time.sleep(.02)
         assert not app.busy, 'Worker did not finish'
-        assert app.result.cget('text')=='Einrichtung abgeschlossen', app.output.get('1.0','end')
+        assert app.result.cget('text')=='Setup complete', app.output.get('1.0','end')
         assert 'SETUP COMPLETE' in (app.state/'setup.log').read_text()
         root.destroy()
 finally:fixture.tearDown()

@@ -15,55 +15,55 @@ def ask(label, default=''):
 
 def yes(label, default=False):
     while True:
-        value = ask(label + (' [J/n]' if default else ' [j/N]')).lower()
+        value = ask(label + (' [Y/n]' if default else ' [y/N]')).lower()
         if not value:
             return default
         if value in ('j', 'ja', 'y', 'yes'):
             return True
         if value in ('n', 'nein', 'no'):
             return False
-        print('Bitte j oder n eingeben.')
+        print('Enter y or n.')
 
 
 def choose(label, choices, default=None, manual=False):
     """Only a unique choice (or recorded Proton hint) receives a default."""
     choices = list(choices)
     if not choices and not manual:
-        raise SetupError('Keine Auswahl gefunden: '+label)
+        raise SetupError('No choices found: '+label)
     print('\n'+label)
     for i, item in enumerate(choices, 1):
         print(f'  {i}. {item}')
     index = choices.index(default)+1 if default in choices else (1 if len(choices)==1 else '')
     while True:
-        value = ask('Nummer'+(' oder vollständigen Pfad eingeben' if manual else ''), index)
+        value = ask('Number'+(' or enter a full path' if manual else ''), index)
         if value.isdigit() and 1 <= int(value) <= len(choices):
             return choices[int(value)-1]
         if manual and value and (value.startswith('/') or value.startswith('~/')):
             return Path(value).expanduser().resolve()
-        print('Bitte eine gültige Nummer'+(' oder einen absoluten Pfad' if manual else '')+' wählen.')
+        print('Select a valid number'+(' or an absolute path' if manual else '')+'.')
 
 
 def build_plan(home):
     profile = load_profile(home)
     steam = profile.steam
     proton = profile.require_proton()
-    print('Manuelles DroidDeck-Profil:')
+    print('Manual DroidDeck profile:')
     print('Steam: '+str(steam)+'\nProton: '+str(proton)+'\n'+profile.note)
-    use_game = yes('Kingdom Hearts einrichten?', True)
-    use_openkh = yes('OpenKH einrichten?')
+    use_game = yes('Set up Kingdom Hearts?', True)
+    use_openkh = yes('Set up OpenKH?')
     if not use_game and not use_openkh:
-        raise SetupError('Kein Programm ausgewählt.')
-    runtimes = yes('Fehlende Windows-Runtimes prüfen/installieren?', True)
-    dll = yes('Main version.dll im Spielordner einsetzen?', True) if use_game else False
-    launch = yes('Steam-Startoptionen einrichten?', True)
-    account = choose('Steam-Konto (userdata-ID)', accounts(steam)) if launch or use_openkh else ''
+        raise SetupError('No application selected.')
+    runtimes = yes('Check/install missing Windows runtimes?', True)
+    dll = yes('Install main version.dll in the game directory?', True) if use_game else False
+    launch = yes('Configure Steam launch options?', True)
+    account = choose('Steam account (userdata ID)', accounts(steam)) if launch or use_openkh else ''
     targets = []
 
     def add_target(label, appid, game=False):
         compat = profile.compat(appid)
         if not (compat/'pfx/system.reg').is_file() or not (compat/'pfx/drive_c').is_dir():
-            raise SetupError(f'{label}: Prefix fehlt am vorgesehenen Ort: {compat}. '
-                             'Kein Ausweichen auf eine andere Bibliothek. Pfad/Einrichtung prüfen.')
+            raise SetupError(f'{label}: Prefix missing at the expected location: {compat}. '
+                             'No fallback to another library. Check the path/setup.')
         print(label+' Prefix: '+str(compat))
         targets.append(Target(label, appid, compat, proton, game))
 
@@ -73,13 +73,13 @@ def build_plan(home):
         path = steam/'userdata'/account/'config/shortcuts.vdf'
         found = {f'{s.name} — {s.appid}': s for s in shortcuts(path.read_bytes())
                  if 'openkh' in (s.name+' '+s.exe).lower()} if path.is_file() else {}
-        selected = found[choose('OpenKH Steam-Verknüpfung', found)]
+        selected = found[choose('OpenKH Steam shortcut', found)]
         add_target('OpenKH', selected.appid)
     game = profile.game if dll else Path('/')
-    backup = Path(ask('Backup-Verzeichnis', profile.backup)).expanduser().resolve()
-    raw = ask('Optional: vollständiger Pfad zur originalen add_registry.bat (Enter = überspringen)')
+    backup = Path(ask('Backup directory', profile.backup)).expanduser().resolve()
+    raw = ask('Optional: full path to the original add_registry.bat (Enter = skip)')
     batch = Path(raw).expanduser().resolve() if raw else None
-    batch_id = choose('Registry-Batch im Prefix dieser AppID ausführen', [t.appid for t in targets]) if batch else APPID
+    batch_id = choose('Run registry batch in the prefix for this AppID', [t.appid for t in targets]) if batch else APPID
     plan = Plan(steam, account, game, backup, targets, runtimes, dll, launch, batch, batch_id)
     plan.validate()
     return plan
@@ -87,10 +87,10 @@ def build_plan(home):
 
 def review_and_install(plan, state):
     summary = plan_summary(plan)
-    print('\nAUSWAHL PRÜFEN — bisher keine Installation\n\n'+summary)
+    print('\nREVIEW SELECTION — nothing installed yet\n\n'+summary)
     require_stopped()
-    if ask('\nZum Einrichten genau JA eingeben; Enter beendet ohne Installation') != 'JA':
-        print('Beendet ohne Installation.')
+    if ask('\nType YES exactly to install; Enter exits without installing') != 'YES':
+        print('Exited without installing.')
         return
     with setup_lock(state):
         with (state/'setup.log').open('w') as log:
@@ -102,8 +102,8 @@ def review_and_install(plan, state):
             except Exception as error:
                 runner.log('FAILED: '+str(error))
                 raise
-    print('\nEinrichtung abgeschlossen. Backup: '+str(folder))
-    print('Steam neu öffnen und Spiel/OpenKH testen. Die Runtime-Prüfung ersetzt keinen Spieltest.')
+    print('\nSetup complete. Backup: '+str(folder))
+    print('Reopen Steam and test the game/OpenKH. Runtime checks do not replace an in-game test.')
 
 
 def main():
@@ -111,21 +111,21 @@ def main():
     state = Path(os.environ.get('XDG_STATE_HOME', home/'.local/state'))/'panacea-arm'
     try:
         if platform.machine().lower() not in ('aarch64', 'arm64'):
-            raise SetupError('Im ARM64-Linux-Desktop von DroidDeck starten.')
-        print('Panacea / OpenKH Setup — Terminal-Assistent\n'
-              'Steam, Spiel und Windows-Anwendungen vollständig schließen.\n'
-              'Vor der abschließenden Bestätigung wird nichts installiert. Strg+C bricht ab.')
+            raise SetupError('Run this inside the DroidDeck ARM64 Linux desktop.')
+        print('Panacea / OpenKH Setup — Terminal assistant\n'
+              'Fully close Steam, the game and Windows applications.\n'
+              'Nothing is installed before final confirmation. Ctrl+C cancels.')
         plan = build_plan(home)
         review_and_install(plan, state)
-        input('\nEnter schließt den Assistenten.')
+        input('\nPress Enter to close the assistant.')
         return 0
     except (KeyboardInterrupt, EOFError):
-        print('\nAbgebrochen. Bei Abbruch während der Installation das Setup-Log prüfen; kein automatischer Rollback.')
+        print('\nCancelled. If installation was interrupted, check the setup log; there is no automatic rollback.')
         return 130
     except (SetupError, OSError, UnicodeError, ValueError) as error:
-        print('\nFEHLER: '+str(error))
-        print('Installationslog (falls begonnen): '+str(state/'setup.log'))
-        print('Vorhandene Backups bleiben erhalten; kein automatischer Rollback.')
+        print('\nERROR: '+str(error))
+        print('Installation log (if started): '+str(state/'setup.log'))
+        print('Existing backups are kept; there is no automatic rollback.')
         return 1
 
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Package a CI-built ARM64 onedir runtime inside a shared-storage-safe ZIP."""
 import hashlib
+import shutil
 from pathlib import Path
 import tarfile
 import zipfile
@@ -11,7 +12,12 @@ runtime=DIST/'Panacea-Setup'
 if not (runtime/'Panacea-Setup').is_file():raise SystemExit('Build the ARM64 runtime first.')
 # Runtime symlinks stay inside tar, never unpacked by an Android ZIP extractor.
 archive=DIST/'runtime.tar.gz'
-with tarfile.open(archive,'w:gz') as out:out.add(runtime,arcname='Panacea-Setup')
+def runtime_member(member):
+    # No image assets are used by the wizard; omit bundled Tk demo logos.
+    if Path(member.name).suffix.lower() in {'.png','.gif','.jpg','.jpeg','.ico','.bmp','.webp','.bmd'}:
+        return None
+    return member
+with tarfile.open(archive,'w:gz') as out:out.add(runtime,arcname='Panacea-Setup',filter=runtime_member)
 files={}
 with zipfile.ZipFile(DIST/'Panacea-ARM-Linux-Setup.zip') as source:
     for entry in source.infolist():files[entry.filename.split('/',1)[1]]=source.read(entry)
@@ -27,6 +33,16 @@ files['NATIVE-README.txt']=('Panacea DroidDeck native setup\n\nExtract this enti
     'Keep config.env beside Panacea-Setup.desktop. See README.md / README-DE.md.\n'
     'If startup fails, see ~/.local/state/panacea-arm/native-start.log.\n').encode()
 files['SHA256SUMS.txt']=''.join(f'{hashlib.sha256(data).hexdigest()}  {name}\n' for name,data in sorted(files.items()) if name!='SHA256SUMS.txt').encode()
+# Upload this directory to Actions, not the release ZIP below: Actions adds
+# the one user-facing ZIP itself. Keep the folder and manifest together.
+staging=DIST/'native-artifact'
+if staging.exists():shutil.rmtree(staging)
+package=staging/'Panacea-DroidDeck-Native-Setup'
+for name,data in files.items():
+    target=package/name
+    target.parent.mkdir(parents=True,exist_ok=True)
+    target.write_bytes(data)
+    target.chmod(0o755 if name.endswith(('.sh','.desktop')) else 0o644)
 output=DIST/'Panacea-DroidDeck-Native-Setup.zip'
 with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
     for name,data in sorted(files.items()):

@@ -742,17 +742,17 @@ def plan_summary(plan):
     lines=[]
     for t in plan.targets:lines.append(f'{t.label} ({t.appid})\nPrefix: {t.compat}/pfx\nProton: {t.proton}')
     lines.append('Backup: '+str(plan.backup_root))
-    if plan.runtimes:lines.append('Linux-Helfer prüfen; fehlendes cabextract, curl, unzip und file samt benötigten Bibliotheken unter ~/.local installieren (DroidDeck: ohne sudo).\nRuntimes prüfen; fehlende .NET-8-Runtimes (x86/x64), für KH zusätzlich vcrun6 und xaudio29 installieren.\nDas Paket nutzt die dokumentierten Winetricks-Versionen (.NET 8.0.12); vorhandene funktionierende 8.x-Versionen bleiben erhalten.')
-    if plan.install_dll:lines.append('Main version.dll ersetzen: '+str(plan.game_dir))
-    if plan.registry_batch:lines.append(f'Registry-Batch AUSFÜHREN: {plan.registry_batch}\nIm Prefix für AppID {plan.registry_appid}.')
+    if plan.runtimes:lines.append('Check Linux helpers; install missing cabextract, curl, unzip and file with required libraries under ~/.local (DroidDeck: no sudo).\nCheck runtimes; install missing .NET 8 runtimes (x86/x64), plus vcrun6 and xaudio29 for KH.\nThe kit uses the documented Winetricks versions (.NET 8.0.12); existing working 8.x versions are kept.')
+    if plan.install_dll:lines.append('Replace main version.dll: '+str(plan.game_dir))
+    if plan.registry_batch:lines.append(f'RUN registry batch: {plan.registry_batch}\nIn the prefix for AppID {plan.registry_appid}.')
     if plan.launch_options:
         edits=launch_edits(plan)
-        if not edits:lines.append('Steam-Startoptionen sind bereits gesetzt.')
+        if not edits:lines.append('Steam launch options are already configured.')
         for path, before, after in edits:
             if path.name == 'localconfig.vdf':
                 value=descend(text_vdf(after.decode()),['UserLocalConfigStore','Software','Valve','Steam','apps',APPID,'LaunchOptions']).value
-                lines.append('Kingdom Hearts Startoptionen:\n'+value)
+                lines.append('Kingdom Hearts launch options:\n'+value)
             else:
                 ids={t.appid for t in plan.targets if not t.game}
-                lines.extend('OpenKH Startoptionen:\n'+s.options for s in shortcuts(after) if s.appid in ids)
+                lines.extend('OpenKH launch options:\n'+s.options for s in shortcuts(after) if s.appid in ids)
     return '\n\n'.join(lines)

@@ -9,9 +9,11 @@ Stand: 12. Oktober 2026. Für deine Arch-Linux-ARM-/DroidDeck-Umgebung unter And
 ### Eigenständiges Setup-Fenster (empfohlen)
 
 1. Unter [GitHub Actions → Build and validate](https://github.com/BeZide93/panacea-arm/actions/workflows/build.yml) den erfolgreichen Lauf für den gewünschten Branch öffnen. Solange dieser PR offen ist, **feat/droiddeck-setup-assistant** wählen.
-2. Unter **Artifacts** das Paket **Panacea-DroidDeck-Native-Setup** herunterladen (GitHub-Anmeldung erforderlich). Das äußere Artifact-ZIP und anschließend **Panacea-DroidDeck-Native-Setup.zip** vollständig entpacken.
+2. Unter **Artifacts** das Paket **Panacea-DroidDeck-Native-Setup** herunterladen (GitHub-Anmeldung erforderlich). Die heruntergeladene ZIP **einmal** entpacken. Sie enthält direkt den fertigen Ordner **Panacea-DroidDeck-Native-Setup**, keine zweite Setup-ZIP.
 3. Im Linux-Desktop von DroidDeck Steam und Windows-Anwendungen schließen und **Panacea-Setup.desktop** doppelklicken. Bei Nachfrage die Ausführung erlauben. Der gesamte Paketordner muss zusammenbleiben.
-4. **Willkommen → Komponenten → Prüfen → Installieren** durchlaufen. Konto auswählen, optional OpenKH aktivieren und die Zusammenfassung prüfen. Erst **Installieren** verändert die Einrichtung. Fortschritt, Fehler und Abschluss bleiben im selben Fenster.
+4. **Welcome → Components → Review → Install** durchlaufen. Konto auswählen, optional OpenKH aktivieren und die Zusammenfassung prüfen. Erst **Install** verändert die Einrichtung. Fortschritt, Fehler und Abschluss bleiben im selben Fenster.
+
+Alle Setup-Oberflächen, Bestätigungen und eigenen Meldungen sind auf Englisch. Im Terminal lautet die abschließende Bestätigung **YES**.
 
 Dieses Paket enthält ein natives Linux-ARM64-Programm mit Python und Tcl/Tk für die Oberfläche. Es startet weder Browser noch Terminal und benötigt keine separat installierte Tk-Version. Es ist keine Windows-EXE: Der Assistent muss direkt auf die Linux-Pfade, Proton und Steam-Konfiguration zugreifen. DroidDecks bestehende Linux-Basis einschließlich `python3` für den Desktop-Starter und die manuellen Skripte bleibt Voraussetzung.
 

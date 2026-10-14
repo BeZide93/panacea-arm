@@ -24,7 +24,7 @@ class Application:
         self.state_dir = Path(os.environ.get('XDG_STATE_HOME', self.home/'.local/state'))/'panacea-arm'
         self.lock = threading.RLock()
         self.busy = False
-        self.phase = 'Bereit'
+        self.phase = 'Ready'
         self.lines = ''
         self.error = ''
         self.backup = ''
@@ -48,11 +48,11 @@ class Application:
         proton = profile.require_proton()
         account = data.get('account','')
         if account not in accounts(profile.steam):
-            raise SetupError('Steam-Konto auswählen.')
+            raise SetupError('Select a Steam account.')
         flags = {}
         for key in ('game','openkh','runtimes','dll','launch'):
             if type(data.get(key)) is not bool:
-                raise SetupError('Ungültige Setup-Auswahl: '+key)
+                raise SetupError('Invalid setup selection: '+key)
             flags[key] = data[key]
         targets = []
         if flags['game']:
@@ -60,18 +60,18 @@ class Application:
         if flags['openkh']:
             found = [s for s in self.choices(profile,account) if s.appid == data.get('shortcut')]
             if len(found) != 1:
-                raise SetupError('OpenKH-Verknüpfung auswählen.')
+                raise SetupError('Select an OpenKH shortcut.')
             targets.append(Target('OpenKH',found[0].appid,profile.compat(found[0].appid),proton))
         backup = data.get('backup','')
         batch = data.get('batch','')
         if not isinstance(backup,str) or not isinstance(batch,str):
-            raise SetupError('Ungültiger Pfad.')
+            raise SetupError('Invalid path.')
         backup_path = Path(backup).expanduser()
         if not backup_path.is_absolute():
-            raise SetupError('Absolutes Backup-Verzeichnis angeben.')
+            raise SetupError('Enter an absolute backup directory.')
         batch_path = Path(batch).expanduser() if batch.strip() else None
         if batch_path and not batch_path.is_absolute():
-            raise SetupError('Absoluten Pfad zur originalen add_registry.bat angeben.')
+            raise SetupError('Enter the absolute path to the original add_registry.bat.')
         plan = Plan(profile.steam,account,profile.game if flags['dll'] else Path('/'),backup_path,
                     targets,flags['runtimes'],flags['dll'],flags['launch'],batch_path,data.get('batch_target',APPID))
         plan.validate()
@@ -86,7 +86,7 @@ class Application:
     def review(self, data):
         with self.lock:
             if self.busy:
-                raise SetupError('Die Installation läuft bereits.')
+                raise SetupError('Installation is already running.')
             self.reviewed = None
             plan = self.make_plan(data)
             require_stopped()
@@ -98,17 +98,17 @@ class Application:
     def start(self, review_id):
         with self.lock:
             if self.busy:
-                raise SetupError('Die Installation läuft bereits.')
+                raise SetupError('Installation is already running.')
             if self.reviewed is None or not hmac.compare_digest(str(review_id),self.reviewed[0]):
-                raise SetupError('Bitte die Auswahl zuerst prüfen und bestätigen.')
+                raise SetupError('Review and confirm the selection first.')
             _, data, fingerprint = self.reviewed
             self.reviewed = None  # One confirmation can start at most one attempt.
             plan = self.make_plan(data)
             require_stopped()
             if self.fingerprint(plan) != fingerprint:
-                raise SetupError('Konfiguration seit der Vorschau geändert. Bitte erneut prüfen.')
+                raise SetupError('Configuration changed since the preview. Review it again.')
             self.busy = True
-            self.phase = 'Einrichtung läuft'
+            self.phase = 'Setup in progress'
             self.lines = self.error = self.backup = ''
             threading.Thread(target=self.worker,args=(plan,),daemon=False).start()
         return {'started':True}
@@ -131,11 +131,11 @@ class Application:
                         raise
             with self.lock:
                 self.backup = str(backup)
-                self.phase = 'Einrichtung abgeschlossen'
+                self.phase = 'Setup complete'
         except Exception as error:
             with self.lock:
                 self.error = str(error)
-                self.phase = 'Einrichtung fehlgeschlagen'
+                self.phase = 'Setup failed'
         finally:
             with self.lock:
                 self.busy = False
@@ -188,29 +188,29 @@ class Handler(BaseHTTPRequestHandler):
             self.send(200,HTML.read_bytes(),'text/html; charset=utf-8')
             return
         if not self.authorized():
-            self.send(403,{'error':'Zugriff nicht erlaubt. Den Desktop-Starter verwenden.'});return
+            self.send(403,{'error':'Access denied. Den Desktop-Starter verwenden.'});return
         try:
             if self.path == '/api/inventory':
                 self.send(200,self.server.app.inventory())
             elif self.path == '/api/status':
                 self.send(200,self.server.app.status())
             else:
-                self.send(404,{'error':'Nicht gefunden.'})
+                self.send(404,{'error':'Not found.'})
         except (SetupError,OSError,UnicodeError,ValueError) as error:
             self.send(400,{'error':str(error)})
 
     def do_POST(self):
         if not self.authorized():
-            self.send(403,{'error':'Zugriff nicht erlaubt.'});return
+            self.send(403,{'error':'Access denied.'});return
         try:
             if self.headers.get('Content-Type','').split(';')[0] != 'application/json':
-                raise SetupError('JSON erforderlich.')
+                raise SetupError('JSON required.')
             length = int(self.headers.get('Content-Length','0'))
             if not 0 < length <= 32768:
-                raise SetupError('Ungültige Anfragegröße.')
+                raise SetupError('Invalid request size.')
             data = json.loads(self.rfile.read(length))
             if not isinstance(data,dict):
-                raise SetupError('Ungültige Anfrage.')
+                raise SetupError('Invalid request.')
             if self.path == '/api/review':
                 result = self.server.app.review(data)
             elif self.path == '/api/start':
@@ -218,14 +218,14 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/api/close':
                 with self.server.app.lock:
                     if self.server.app.busy:
-                        raise SetupError('Bitte die laufende Installation abwarten.')
+                        raise SetupError('Please wait for installation to finish.')
                     result = {'closed':True}
                     # Mark the instance closed before releasing the lock.
                     self.server.app.reviewed = None
                     self.server.app.busy = True
                 threading.Thread(target=self.server.shutdown,daemon=True).start()
             else:
-                self.send(404,{'error':'Nicht gefunden.'});return
+                self.send(404,{'error':'Not found.'});return
             self.send(200,result)
         except (SetupError,OSError,UnicodeError,ValueError,TypeError) as error:
             self.send(400,{'error':str(error)})
@@ -233,16 +233,16 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     if platform.machine().lower() not in ('aarch64','arm64'):
-        raise SystemExit('Im ARM64-Linux-Desktop von DroidDeck starten.')
+        raise SystemExit('Run this inside the DroidDeck ARM64 Linux desktop.')
     with Server(Application()) as server:
         url = server.origin+'/#'+server.token
-        print('Panacea-Setup öffnet sich im Browser. Dieses Starter-Fenster geöffnet lassen.',flush=True)
-        print('Falls sich kein Browser öffnet, diese lokale Adresse öffnen:\n'+url,flush=True)
+        print('Panacea Setup is opening in the browser. Keep this launcher window open.',flush=True)
+        print('If the browser does not open, open this local address:\n'+url,flush=True)
         threading.Thread(target=lambda:webbrowser.open(url,new=1),daemon=True).start()
         try:
             server.serve_forever()
         except KeyboardInterrupt:
-            print('Starter beendet. Eine laufende Installation wird noch abgearbeitet.',flush=True)
+            print('Launcher closed. Any running installation will finish first.',flush=True)
 
 
 if __name__ == '__main__':
