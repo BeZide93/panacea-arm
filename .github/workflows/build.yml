@@ -2,6 +2,8 @@ name: Build and validate
 
 on:
   push:
+    branches: ['**']
+    tags: ['**']
   pull_request:
   workflow_dispatch:
 
@@ -116,3 +118,41 @@ jobs:
           name: Panacea-DroidDeck-Native-Setup
           if-no-files-found: error
           path: dist/native-artifact/
+
+  release:
+    name: Publish setup to tagged release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [windows-x64, native-arm64]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: setup-release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Panacea-DroidDeck-Native-Setup
+          path: release
+      - name: Verify and package the tested setup
+        working-directory: release
+        run: |
+          (cd Panacea-DroidDeck-Native-Setup && sha256sum -c SHA256SUMS.txt)
+          # Actions artifacts do not preserve executable permissions.
+          chmod +x Panacea-DroidDeck-Native-Setup/*.sh Panacea-DroidDeck-Native-Setup/*.desktop
+          zip -q -r Panacea-DroidDeck-Native-Setup.zip Panacea-DroidDeck-Native-Setup
+          sha256sum Panacea-DroidDeck-Native-Setup.zip > Panacea-DroidDeck-Native-Setup.sha256
+      - name: Create or update the release for this tag
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view --repo "$GH_REPO" -- "$RELEASE_TAG" >/dev/null; then
+            gh release create --repo "$GH_REPO" --verify-tag --generate-notes --title "$RELEASE_TAG" -- "$RELEASE_TAG"
+          fi
+          gh release upload --repo "$GH_REPO" --clobber -- "$RELEASE_TAG" \
+            Panacea-DroidDeck-Native-Setup.zip \
+            Panacea-DroidDeck-Native-Setup.sha256
