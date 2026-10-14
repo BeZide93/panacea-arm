@@ -5,7 +5,9 @@ import platform
 
 from core import (APPID, Plan, Runner, SetupError, Target, accounts, execute,
                   game_dirs, libraries, plan_summary, prefixes, proton_candidates,
-                  proton_hint, require_stopped, setup_lock, shortcuts, steam_roots)
+                  require_stopped, setup_lock, shortcuts, steam_roots)
+
+from routing import configuration, observe
 
 
 def ask(label, default=''):
@@ -46,7 +48,6 @@ def choose(label, choices, default=None, manual=False):
 def build_plan(home):
     steam = choose('Steam-Verzeichnis', steam_roots(home), manual=True)
     libs = libraries(steam, home)
-    candidates = proton_candidates(home, libs, steam)
     use_game = yes('Kingdom Hearts einrichten?', True)
     use_openkh = yes('OpenKH einrichten?')
     if not use_game and not use_openkh:
@@ -54,14 +55,34 @@ def build_plan(home):
     runtimes = yes('Fehlende Windows-Runtimes prüfen/installieren?', True)
     dll = yes('Main version.dll im Spielordner einsetzen?', True) if use_game else False
     launch = yes('Steam-Startoptionen einrichten?', True)
-    account = choose('Steam-Konto (userdata-ID)', accounts(steam)) if launch or use_openkh else ''
+    account = choose('Steam-Konto (userdata-ID)', accounts(steam))
     targets = []
 
     def add_target(label, appid, game=False):
-        compat = choose(label+' compatdata (ohne /pfx)', prefixes(libs, appid), manual=True)
-        proton = choose(label+' ARM64-Proton — den in Steam verwendeten Build wählen',
-                        candidates, proton_hint(compat, candidates), manual=True)
-        targets.append(Target(label, appid, compat, proton, game))
+        _, note = configuration(steam, account, appid, libs)
+        print('\n'+label+' — '+note)
+        print('Jetzt '+label+' über Steam starten und GEÖFFNET LASSEN. Dann hier Enter drücken.\n'
+              'Der Assistent liest nur den tatsächlichen Prefix und Wine-Build; er startet nichts selbst.')
+        while True:
+            command=input('Enter = laufenden Start erkennen; ? = Experten-Inventar; Strg+C = abbrechen: ').strip()
+            if command == '?':
+                print('Gefundene Prefixe (nicht bestätigt):')
+                print('\n'.join(map(str,prefixes(libs,appid))))
+                print('Gefundene Proton-Builds (nicht bestätigt):')
+                print('\n'.join(map(str,proton_candidates(home,libs,steam))))
+                continue
+            if command:
+                print('Enter, ? oder Strg+C verwenden. Keine manuelle Proton-Nummer erforderlich.')
+                continue
+            try:
+                evidence = observe(steam, account, appid, libs, proton_candidates(home, libs, steam))
+                break
+            except SetupError as error:
+                print(str(error))
+        print('Bestätigter Prefix: '+str(evidence.compat))
+        print('Bestätigter ARM64-Proton: '+str(evidence.proton))
+        print(label+' jetzt schließen. Steam erst nach der Erkennung aller Programme schließen.')
+        targets.append(Target(label, appid, evidence.compat, evidence.proton, game, evidence))
 
     if use_game:
         add_target('Kingdom Hearts', APPID, True)
@@ -76,6 +97,7 @@ def build_plan(home):
     raw = ask('Optional: vollständiger Pfad zur originalen add_registry.bat (Enter = überspringen)')
     batch = Path(raw).expanduser().resolve() if raw else None
     batch_id = choose('Registry-Batch im Prefix dieser AppID ausführen', [t.appid for t in targets]) if batch else APPID
+    input('Jetzt Steam, Spiel und OpenKH vollständig schließen; danach Enter: ')
     plan = Plan(steam, account, game, backup, targets, runtimes, dll, launch, batch, batch_id)
     plan.validate()
     return plan
@@ -109,7 +131,7 @@ def main():
         if platform.machine().lower() not in ('aarch64', 'arm64'):
             raise SetupError('Im ARM64-Linux-Desktop von DroidDeck starten.')
         print('Panacea / OpenKH Setup — Terminal-Assistent\n'
-              'Steam, Spiel und Windows-Anwendungen vollständig schließen.\n'
+              'Zur Erkennung das jeweilige Programm über Steam öffnen; vor der Installation alles schließen.\n'
               'Vor der abschließenden Bestätigung wird nichts installiert. Strg+C bricht ab.')
         plan = build_plan(home)
         review_and_install(plan, state)

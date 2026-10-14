@@ -7,13 +7,13 @@ Stand: 12. Oktober 2026. Für deine Arch-Linux-ARM-/DroidDeck-Umgebung unter And
 ## Grafischer Setup-Assistent für DroidDeck
 
 1. Das [vollständige Setup-ZIP](../packages/Panacea-ARM-Linux-Setup.zip?raw=true) **im Linux-Desktop von DroidDeck** herunterladen und entpacken.
-2. Steam, Kingdom Hearts, OpenKH und andere Windows-Anwendungen vollständig schließen. **`Panacea-Setup.desktop`** im entpackten Ordner doppelklicken. Falls der Dateimanager nachfragt: Ausführung erlauben / Starter als vertrauenswürdig markieren. Den Ordner zusammenlassen.
-3. Erkanntes Spiel, Steam-Konto, vorhandenen Prefix und **den tatsächlich für dieses Programm verwendeten Proton-Build** prüfen. Bei leeren oder mehrdeutigen Feldern über Dropdown oder `…` auswählen. **OpenKH** aktivieren, um zusätzlich dessen eigene Steam-Verknüpfung und Prefix einzurichten.
-4. **Einrichten** anklicken, die angezeigten Änderungen prüfen und bestätigen. Vor der Installation werden alle ausgewählten Prefixe, die ersetzte DLL und geänderte Steam-Dateien gesichert. Anschließend Steam neu öffnen.
+2. **`Panacea-Setup.desktop`** im entpackten Ordner doppelklicken. Falls der Dateimanager nachfragt: Ausführung erlauben / Starter als vertrauenswürdig markieren. Den Ordner zusammenlassen.
+3. Steam, Konto und die gewünschten Programme auswählen. **Kingdom Hearts über Steam starten und geöffnet lassen**, dann **Laufendes Kingdom Hearts erkennen** anklicken. OpenKH ebenso separat starten und erkennen. Im Terminal-Assistenten das jeweils angeforderte Programm starten und bei laufendem Programm Enter drücken. Prefix und Wine-Build werden übernommen; zwischen mehreren Proton-Nummern muss nicht mehr geraten werden.
+4. **Spiel, OpenKH, andere Windows-Anwendungen und Steam vollständig schließen.** Danach **Einrichten** wählen und die Zusammenfassung bestätigen (Terminal: genau `JA`). Vor der Installation werden die ausgewählten Prefixe, ersetzte DLL und geänderten Steam-Dateien gesichert. Danach Steam wieder öffnen.
 
 Auswählbar sind Runtime-Prüfung/-Installation, Einsetzen der beiliegenden main-version.dll, Ausführen einer ausdrücklich ausgewählten originalen `add_registry.bat` im gewählten Prefix und Einrichten der Startoptionen. Nicht benötigte Schritte abwählen. Für OpenKH allein Kingdom Hearts und DLL-Installation abwählen. OpenKH muss bereits als Steam-Verknüpfung existieren und einmal gestartet worden sein; seine AppID ist nicht fest vorgegeben.
 
-Python 3 gehört zu DroidDecks Linux-Werkzeugen. Fehlt Tk, öffnet der Starter automatisch einen **Terminal-Assistenten** mit derselben Erkennung, Prüfung, Sicherung und Installation. Nummern wählen (oder absolute Pfade eingeben), die Zusammenfassung prüfen und zum Installieren genau `JA` eingeben. Enter bei dieser letzten Frage beendet ohne Installation. Explizit starten: `bash start-setup.sh --terminal`. Zum Öffnen sind weder Tk-Download noch `sudo` nötig.
+Python 3 gehört zu DroidDecks Linux-Werkzeugen. Fehlt Tk, öffnet der Starter automatisch einen **Terminal-Assistenten** mit derselben Erkennung, Prüfung, Sicherung und Installation. Steam/Konto wählen, die laufenden Programme nach Aufforderung erkennen lassen und die Zusammenfassung prüfen und zum Installieren genau `JA` eingeben. Enter bei dieser letzten Frage beendet ohne Installation. Explizit starten: `bash start-setup.sh --terminal`. Zum Öffnen sind weder Tk-Download noch `sudo` nötig.
 
 DroidDeck kann den Benutzernamen `root` anzeigen, obwohl der Desktop mit der Android-App-UID läuft. Vorhandene Hilfsprogramme werden weiterverwendet; allein für den Download des geprüften Winetricks-Skripts wird kein Paketmanager gestartet. Fehlen tatsächlich Programme wie `cabextract` und gibt es weder Root-Rechte noch `sudo`, nennt das Setup die fehlenden Programme und stoppt **vor jeder Prefix-Änderung**. Diese über die unterstützte Paketinstallation der Linux-Umgebung ergänzen und erneut starten. DroidDecks separater Fake-Root-Installer wird hier nicht automatisiert; Android-Geräte-Root ist nicht nötig.
 
@@ -24,6 +24,16 @@ Die beiliegende DLL wird per SHA-256 geprüft, während der Einrichtung nicht vo
 .NET wird über die Windows-x86/x64-Hosts geprüft, auch unter `Program Files/dotnet/x64`. Funktionierende **8.x**-Runtimes bleiben erhalten. Fehlende Runtimes werden mit dem unten dokumentierten Winetricks/.NET-8.0.12-Stand installiert. Ist eine Runtime bei Winetricks eingetragen, besteht aber die Prüfung nicht, wird ohne erzwungene Neuinstallation abgebrochen. `ucrtbase2019` wird nie installiert. Bei den älteren Runtimes werden Winetricks-Installationsnachweise geprüft; ein abschließender Spiel-/OpenKH-Test bleibt nötig.
 
 **Log und Wiederherstellung:** `~/.local/state/panacea-arm/setup.log` (bzw. `$XDG_STATE_HOME/panacea-arm/setup.log`) wird bei jedem Installationsversuch neu geschrieben. Backups liegen mit Zeitstempel im gewählten Sicherungsordner. `backup.json` ordnet Originale und Sicherungen zu; `RESTORE.txt` erklärt die Wiederherstellung. Es gibt keinen automatischen Prefix-Rollback. Eine vollständige Wiederherstellung setzt auch spätere Spielstände/Einstellungen zurück; deshalb den aktuellen Prefix vorher behalten. Panaceas bestehende Logs bleiben unberührt.
+
+### Eindeutige Zuordnung von Prefix und Proton
+
+Der Assistent liest Steams aktuelle Zuordnung pro App beziehungsweise den Standard `0`. Tool-Namen werden anhand lokaler Manifeste zugeordnet. Da DroidDeck anschließend auf eine `droiddeck-esync`-Kopie umleiten kann, reicht diese Einstellung nicht zur Bestätigung. `config_info` ist nur Historie und erzeugt keine Vorauswahl mehr.
+
+Bestätigt wird der **laufende Wine-Prozess** der gewählten Steam-AppID: Steam-Verzeichnis, compatdata, `WINEPREFIX`, tatsächlicher Wine-Pfad samt Dateidentität und gegebenenfalls `WINESERVER` müssen zusammenpassen. Bei bekannten Tool-Manifesten werden auch deren Pfade mit `STEAM_COMPAT_TOOL_PATHS` verglichen. Eine nachvollziehbare Wrapper/esync-Umleitung ist erlaubt; widersprüchliche Angaben oder gemischte Wine/Wineserver-Builds stoppen die Einrichtung.
+
+Es wird nichts automatisch gestartet und kein altes Log als Nachweis verwendet. Ist der Prozess zu kurzlebig, nicht lesbar oder das Layout unbekannt, bleibt die Installation gesperrt. Weitere Ordner zeigt **Gefundene Pfade (Experten)**; im Terminal bei der Erkennungsfrage `?` eingeben. Diese Ansicht umgeht die Prüfung nicht.
+
+Der Nachweis gilt nur in der aktuellen Assistenten-Sitzung und höchstens 30 Minuten. Nach dem Schließen von Steam werden Zuordnung, relevante Startoptionen, bekannte Wrapper und Wine-Dateien vor Backup und Wine-Aufrufen erneut geprüft. Bei Änderungen erneut starten und erkennen. Die erkannten Sync-Flags werden mit dem bestätigten Wine/Wineserver-Paar verwendet; Grafik-/Audio-Funktionen des kompletten Steam-Startwrappers werden damit nicht nachgebildet. Die vollständige Prozessumgebung wird nicht protokolliert.
 
 ## Was wir damals gemacht haben
 
@@ -177,7 +187,7 @@ Zurückgesetzt wurden genau `drive_c/windows/system32/ucrtbase.dll` und `drive_c
 
 ## Prüfung und Grenzen
 
-Für den Assistenten prüft die CI Steam-Erkennung, VDF-Änderungen, getrennte Prefix-Backups, Fehlerfälle und Runtime-Erkennung. Sie öffnet außerdem das Tk-Fenster unter Xvfb und validiert den Desktop-Starter. Ein Test auf einem echten DroidDeck-Gerät steht noch aus. Der vorgeschlagene Proton-Pfad stammt aus der Prefix-Historie oder einem einzelnen vorhandenen Kandidaten; bei mehreren Kandidaten wird nicht automatisch der neueste gewählt.
+Für den Assistenten prüft die CI Steam-Erkennung, VDF-Änderungen, getrennte Prefix-Backups, Fehlerfälle und Runtime-Erkennung. Sie öffnet außerdem das Tk-Fenster unter Xvfb und validiert den Desktop-Starter. Ein Test auf einem echten DroidDeck-Gerät steht noch aus. Zusätzliche Tests prüfen Prozessnachweise, esync-Umleitungen, widersprüchliche Zuordnungen, doppelte Prefixe, Shortcut-IDs, gemischte Wine/Wineserver-Builds und veraltete Nachweise. Prefix-Historie oder Kandidatenreihenfolge bestätigen keinen Startweg.
 
 Die Skripte wurden hier syntaktisch und mit nachgebildeten Wine-/Installationsaufrufen geprüft, einschließlich Pfaden mit Leerzeichen, Prefix-Sicherung, Ablehnung unerlaubter Komponenten und Abbruch bei Wine-Fehlern. Dein Android-/ARM64-System wurde hier nicht ausgeführt. Ein positiver Dateicheck allein belegt noch keine funktionierende Runtime; `--wine`, .NET-Runtime-Ausgabe und der tatsächliche Spielstart sind die nächsten praktischen Prüfungen.
 

@@ -9,15 +9,25 @@ This kit reconstructs the dependency setup used on October 12, 2026. It is not a
 ## Graphical setup for DroidDeck
 
 1. Download and extract the [complete setup ZIP](../packages/Panacea-ARM-Linux-Setup.zip?raw=true) **inside DroidDeck's Linux desktop**.
-2. Close Steam, Kingdom Hearts, OpenKH and other Windows applications. Double-click **`Panacea-Setup.desktop`** in the extracted folder. If the file manager asks, allow execution / mark the launcher as trusted. Keep the entire folder together.
-3. Review the detected game, Steam account, existing prefix and **the Proton build actually used by that program**. Select missing/ambiguous paths with the dropdowns or `…`. Enable **OpenKH** if you also want to configure its separate Steam shortcut/prefix.
-4. Click **Einrichten**, review the changes and confirm. The assistant backs up each selected prefix, the replaced DLL and changed Steam files before installation. Reopen Steam after it finishes.
+2. Double-click **`Panacea-Setup.desktop`** in the extracted folder. If the file manager asks, allow execution / mark the launcher as trusted. Keep the entire folder together.
+3. Select Steam and its account, and enable the programs you want to configure. **Start Kingdom Hearts through Steam and leave it open**, then click **Laufendes Kingdom Hearts erkennen**. Do the same for OpenKH with its own button. In the terminal assistant, start the program when prompted and press Enter while it is still running. The assistant fills the actual prefix and Wine build; there are no competing Proton numbers to guess.
+4. **Close the game, OpenKH, other Windows applications and Steam completely.** Click **Einrichten**, review the changes and confirm (terminal: type `JA`). The assistant backs up each selected prefix, the replaced DLL and changed Steam files before installation. Reopen Steam after it finishes.
 
 The German-language form can check/install missing runtimes, install the bundled main `version.dll`, run an explicitly selected original `add_registry.bat` in the selected prefix, and merge Steam launch options. Uncheck operations you do not need. For OpenKH alone, uncheck Kingdom Hearts and DLL installation. OpenKH must already exist as a Steam shortcut and have been started once. There is no fixed shortcut AppID.
 
-Python 3 is supplied by DroidDeck's Linux tools. If Tk is missing, the launcher automatically opens a **terminal assistant** with the same detection, review, backups and installer. Choose numbered entries (or enter absolute paths), review the summary, then type exactly `JA` to install; Enter at that final prompt exits without installation. To select this interface explicitly, run `bash start-setup.sh --terminal`. No Tk download or `sudo` is required to open it.
+Python 3 is supplied by DroidDeck's Linux tools. If Tk is missing, the launcher automatically opens a **terminal assistant** with the same detection, review, backups and installer. Choose numbered Steam/account entries, confirm each running program when prompted, review the summary, then type exactly `JA` to install; Enter at that final prompt exits without installation. To select this interface explicitly, run `bash start-setup.sh --terminal`. No Tk download or `sudo` is required to open it.
 
 DroidDeck's desktop can identify its user as `root` while running under the Android app UID; that does not provide ordinary Linux root privileges. Existing helper tools are reused, and downloading the verified Winetricks script alone never invokes a package manager. If tools such as `cabextract` are actually missing and the session has neither root privileges nor `sudo`, setup lists them and stops **before modifying any prefix**. Install them through the Linux environment's supported package-installation facility and retry; this assistant does not automate DroidDeck's separate fake-root installer or require Android device root.
+
+### Confirming prefix and Proton
+
+Steam's current per-app `CompatToolMapping` (or its `0` default) is read and tool IDs are resolved from local manifests. These are hints: DroidDeck's wrapper can select a different Wine tree under `droiddeck-esync`. A prefix's `config_info` only records history and is no longer used to preselect a build.
+
+The assistant therefore checks the **currently running Wine process** for the selected Steam AppID, Steam installation, `STEAM_COMPAT_DATA_PATH`, `WINEPREFIX`, executable path/inode and any `WINESERVER` override. OpenKH shortcut IDs encoded in `SteamGameId` are supported. Known tool-manifest paths are compared with the process's `STEAM_COMPAT_TOOL_PATHS`; a wrapper-to-esync redirection is allowed, but mixed Wine/server builds or contradictory routes are rejected. Only the selected routing data and sync flags are retained; the complete process environment is never logged.
+
+This is a read-only observation, not an automatic game launch. Old logs are not accepted as proof. If the process is too short-lived, inaccessible or uses an unsupported layout, setup stops rather than choosing a path. Keep the program running and retry recognition. Extra folders remain visible under **Gefundene Pfade (Experten)**, or `?` at the terminal recognition prompt, but cannot bypass confirmation.
+
+A confirmation lasts for this assistant session, for at most 30 minutes. After closing Steam, the installer rechecks the selected paths, relevant Steam options, known wrappers and Wine build before backup and before any Wine calls. A change requires another start/recognition. The captured sync flags are reused with the confirmed Wine/wineserver pair. This verifies the route; it does not reproduce every graphics/audio feature of Steam's game-launch wrapper.
 
 **What gets changed:** the game receives `version=n,b;dinput8=n,b;LuaBackend=n,b`; other DLL overrides, wrappers and arguments are preserved. Only the selected OpenKH shortcut receives `PROTON_USE_WINED3D=1`. Steam must be fully closed. Complex shell expressions or concurrent config edits cause a stop instead of a guessed rewrite; use the manual launch-option instructions below in that case.
 
@@ -172,7 +182,7 @@ This recovery is not a normal installation step and should not be repeated on a 
 
 ## Validation and limits
 
-The assistant has automated tests for Steam library/shortcut discovery, high-bit shortcut IDs, VDF edits, option merging, separate prefix backups, failures and runtime detection. CI opens the Tk form under Xvfb and validates the desktop launcher. These are host-side tests with mocked Wine/installer calls, not an Android installation test. The detected Proton path is a suggestion from the prefix history or a single available candidate; confirm it against Steam. Multiple candidates are never resolved by picking the newest build.
+The assistant has automated tests for Steam library/shortcut discovery, high-bit shortcut IDs, VDF edits, option merging, separate prefix backups, failures and runtime detection. CI opens the Tk form under Xvfb and validates the desktop launcher. These are host-side tests with mocked Wine/installer calls, not an Android installation test. Routing tests cover live-process confirmation, esync redirection, conflicting mappings, duplicate prefixes, shortcut IDs, mixed Wine/server builds and stale evidence. Prefix history and candidate order never confirm a route.
 
 
 The scripts have been syntax-checked and exercised with mocked Wine/installer calls, including paths with spaces, prefix backups, rejected components and failure handling. They have not been executed here on an Android ARM64 device. File presence alone does not prove a working runtime; use `01-check.sh --wine`, inspect the runtime list and then test the game.
