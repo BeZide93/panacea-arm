@@ -2,6 +2,8 @@
 # Shared functions; loading this file does not run Wine or change a prefix.
 set -euo pipefail
 KIT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+# Reuse the user-local helpers installed by the manual DroidDeck setup.
+export PATH="$HOME/.local/bin:$PATH"
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null || fail "Required program not found: $1"; }
 load_config() {
@@ -10,7 +12,8 @@ load_config() {
     # This is a user-owned shell configuration, not downloaded code.
     source "$cfg"
     : "${KH_APPID:?}" "${KH_COMPATDATA:?}" "${KH_PROTON_ROOT:?}" "${KH_STEAM_ROOT:?}" "${KH_BACKUP_ROOT:?}"
-    [[ "$KH_APPID" == 2552430 || "$KH_APPID" == 4018651221 ]] || fail "Unexpected AppID: $KH_APPID"
+    [[ "$KH_APPID" =~ ^[1-9][0-9]{0,9}$ ]] && (( KH_APPID <= 4294967295 )) || fail "Invalid Steam AppID: $KH_APPID"
+    [[ "${KH_COMPATDATA##*/}" == "$KH_APPID" ]] || fail "Compatdata directory must match the selected AppID."
     [[ "$KH_COMPATDATA" == /* && "$KH_PROTON_ROOT" == /* && "$KH_BACKUP_ROOT" == /* ]] || fail 'Absolute paths are required.'
     [[ -f "$KH_COMPATDATA/pfx/system.reg" && -d "$KH_COMPATDATA/pfx/drive_c" ]] || fail 'Existing prefix not found. Check the path; no new prefix will be created.'
     [[ -d "$KH_STEAM_ROOT" ]] || fail 'Steam directory not found.'

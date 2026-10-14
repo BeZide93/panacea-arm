@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a deterministic setup ZIP from public source files only."""
+"""Build a deterministic setup ZIP with sources and the pinned main DLL."""
 import hashlib
 from pathlib import Path
 import zipfile
@@ -7,7 +7,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 NAMES = ['README.md', 'README-DE.md', 'config.example.env', 'common.sh',
          '00-host-tools.sh', '01-check.sh', '02-install-runtimes.sh',
-         '03-add-registry.sh', '04-launch-options.sh']
+         '03-add-registry.sh', '04-launch-options.sh', 'start-setup.sh',
+         'Panacea-Setup.desktop', 'assistant/core.py', 'assistant/host_tools.py', 'assistant/gui.py', 'assistant/native.py', 'assistant/terminal.py', 'assistant/setup_profile.py', 'assistant/web.py', 'assistant/web.html']
 
 
 def main():
@@ -16,14 +17,24 @@ def main():
                         for name, data in sorted(files.items())).encode()
     if (ROOT / 'linux-setup/SHA256SUMS.txt').read_bytes() != checksums:
         raise SystemExit('Update linux-setup/SHA256SUMS.txt before packaging.')
-    files['SHA256SUMS.txt'] = checksums
+    # Bundle the verified main DLL so setup does not fetch a moving branch.
+    for name in ['version.dll', 'LICENSE-OpenKH.txt', 'LICENSE-HDE.txt', 'NOTICE.txt']:
+        files['payload/' + name] = (ROOT / name).read_bytes()
+    import sys
+    sys.path.insert(0, str(ROOT / 'linux-setup/assistant'))
+    from core import DLL_SHA256
+    if hashlib.sha256(files['payload/version.dll']).hexdigest() != DLL_SHA256:
+        raise SystemExit('Update the assistant DLL pin when intentionally changing version.dll.')
+    files['SHA256SUMS.txt'] = ''.join(
+        f'{hashlib.sha256(data).hexdigest()}  {name}\n' for name, data in sorted(files.items())).encode()
     dist = ROOT / 'dist'
     dist.mkdir(exist_ok=True)
     archive = dist / 'Panacea-ARM-Linux-Setup.zip'
-    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_STORED) as z:
+    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for name, data in sorted(files.items()):
             entry = zipfile.ZipInfo('Panacea-ARM-Linux-Setup/' + name, (2026, 10, 12, 0, 0, 0))
-            entry.external_attr = 0o100644 << 16
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            entry.external_attr = (0o100755 if name.endswith(('.sh', '.desktop')) else 0o100644) << 16
             z.writestr(entry, data)
     (dist / 'Panacea-ARM-Linux-Setup.sha256').write_text(
         f'{hashlib.sha256(archive.read_bytes()).hexdigest()}  {archive.name}\n')

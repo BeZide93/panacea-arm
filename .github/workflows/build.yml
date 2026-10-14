@@ -2,6 +2,8 @@ name: Build and validate
 
 on:
   push:
+    branches: ['**']
+    tags: ['**']
   pull_request:
   workflow_dispatch:
 
@@ -21,7 +23,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y binutils gcc
+          sudo apt-get install -y binutils gcc python3-tk xvfb xauth desktop-file-utils
           python3 -m pip install -r requirements.txt
       - name: Build Windows x64 DLL
         run: |
@@ -46,6 +48,18 @@ jobs:
           cmp build/first-build.dll version.dll
       - name: Package DLL, sources, instructions and rollback
         run: python3 scripts/package.py
+      - name: Test DroidDeck setup assistant
+        run: |
+          python3 -m unittest discover -s tests -p test_setup_assistant.py -v
+          python3 -m unittest discover -s tests -p test_host_tools.py -v
+          desktop-file-validate linux-setup/Panacea-Setup.desktop
+          xvfb-run -a python3 tests/setup_gui_smoke.py
+      - name: Test browser setup interface
+        run: |
+          npm install --prefix "$RUNNER_TEMP/panacea-browser-test" --no-audit --no-fund playwright@1.64.0
+          export NODE_PATH="$RUNNER_TEMP/panacea-browser-test/node_modules"
+          node "$NODE_PATH/playwright/cli.js" install --with-deps chromium
+          node tests/setup_web_smoke.cjs
       - name: Check and package Linux setup scripts
         run: |
           for script in linux-setup/*.sh; do bash -n "$script"; done
@@ -63,3 +77,82 @@ jobs:
             dist/SHA256SUMS.txt
             dist/BUILD-MANIFEST.json
             dist/EXPORTS.txt
+
+  native-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-tk xvfb xauth desktop-file-utils
+          /usr/bin/python3 -m venv --system-site-packages build-native-venv
+          build-native-venv/bin/pip install 'pyinstaller==6.22.3'
+      - name: Build standalone ARM64 wizard
+        run: |
+          python3 scripts/package_linux_setup.py
+          build-native-venv/bin/pyinstaller --noconfirm --clean --onedir --name Panacea-Setup --paths linux-setup/assistant --distpath dist --workpath build/native --specpath build linux-setup/assistant/native.py
+          mkdir -p dist/Panacea-Setup/licenses
+          for package in python3.12 libpython3.12-stdlib tcl8.6 tk8.6 libtcl8.6 libtk8.6; do
+            cp "/usr/share/doc/$package/copyright" "dist/Panacea-Setup/licenses/$package.txt"
+          done
+          cp build-native-venv/lib/python3.12/site-packages/pyinstaller-*.dist-info/licenses/COPYING.txt dist/Panacea-Setup/licenses/PyInstaller.txt
+          python3 scripts/package_native_setup.py
+      - name: Test packaged wizard without host Tk
+        run: |
+          sudo apt-get remove -y python3-tk
+          if /usr/bin/python3 -c 'import tkinter' 2>/dev/null; then exit 1; fi
+          desktop-file-validate linux-setup/native/Panacea-Setup.desktop
+          bash -n linux-setup/native/start-native.sh
+          export PANACEA_SETUP_KIT="$PWD/dist/native-artifact/Panacea-DroidDeck-Native-Setup"
+          test -f "$PANACEA_SETUP_KIT/Panacea-Setup.desktop"
+          test -z "$(find dist/native-artifact -name '*.zip' -print)"
+          (cd "$PANACEA_SETUP_KIT" && sha256sum -c SHA256SUMS.txt)
+          mkdir -p build/native-home
+          export HOME="$PWD/build/native-home"
+          xvfb-run -a bash "$PANACEA_SETUP_KIT/start-native.sh" --smoke-test
+          cat "$HOME/.local/state/panacea-arm/native-start.log"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Panacea-DroidDeck-Native-Setup
+          if-no-files-found: error
+          path: dist/native-artifact/
+
+  release:
+    name: Publish setup to tagged release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [windows-x64, native-arm64]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: setup-release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Panacea-DroidDeck-Native-Setup
+          path: release
+      - name: Verify and package the tested setup
+        working-directory: release
+        run: |
+          (cd Panacea-DroidDeck-Native-Setup && sha256sum -c SHA256SUMS.txt)
+          # Actions artifacts do not preserve executable permissions.
+          chmod +x Panacea-DroidDeck-Native-Setup/*.sh Panacea-DroidDeck-Native-Setup/*.desktop
+          zip -q -r Panacea-DroidDeck-Native-Setup.zip Panacea-DroidDeck-Native-Setup
+          sha256sum Panacea-DroidDeck-Native-Setup.zip > Panacea-DroidDeck-Native-Setup.sha256
+      - name: Create or update the release for this tag
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view --repo "$GH_REPO" -- "$RELEASE_TAG" >/dev/null; then
+            gh release create --repo "$GH_REPO" --verify-tag --generate-notes --title "$RELEASE_TAG" -- "$RELEASE_TAG"
+          fi
+          gh release upload --repo "$GH_REPO" --clobber -- "$RELEASE_TAG" \
+            Panacea-DroidDeck-Native-Setup.zip \
+            Panacea-DroidDeck-Native-Setup.sha256

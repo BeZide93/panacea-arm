@@ -1,12 +1,64 @@
 # Linux ARM64 dependency setup
 
-[Deutsch](README-DE.md) · [Download the complete setup kit](https://github.com/BeZide93/panacea-arm/raw/refs/heads/main/packages/Panacea-ARM-Linux-Setup.zip)
+[Deutsch](README-DE.md) · [Download the complete setup kit](../packages/Panacea-ARM-Linux-Setup.zip?raw=true)
 
 Helper scripts for an existing OpenKH / Kingdom Hearts installation in **DroidDeck's Linux environment on Android**, using Proton Experimental ARM64. Run them in that environment's terminal. The Windows game, Panacea and OpenKH still use x86/x64 components.
 
 This kit reconstructs the dependency setup used on October 12, 2026. It is not a complete Steam, DroidDeck or OpenKH installer. The scripts were newly written from the recorded steps; they are not a verbatim terminal transcript.
 
-## Quick start
+## Graphical setup for DroidDeck
+
+### Standalone setup window (recommended)
+
+1. Open [GitHub Actions → Build and validate](https://github.com/BeZide93/panacea-arm/actions/workflows/build.yml) and select a successful run for the intended branch. While this PR is open, use **feat/droiddeck-setup-assistant**.
+2. Download **Panacea-DroidDeck-Native-Setup** under **Artifacts** (GitHub sign-in required). Extract the downloaded ZIP **once**. It contains the ready-to-run **Panacea-DroidDeck-Native-Setup** folder, with no second setup ZIP.
+3. In DroidDeck's Linux desktop, close Steam and Windows applications, then double-click **Panacea-Setup.desktop**. Allow execution if prompted. Keep the entire package folder together.
+4. Follow **Welcome → Components → Review → Install**. Select the account, optionally enable OpenKH and review the summary. Only **Install** starts changes. Progress, errors and completion stay in the same window.
+
+All setup interfaces, confirmations and setup-generated messages are in English. Terminal mode requires typing **YES** for final confirmation.
+
+The standalone package contains a native Linux ARM64 program with bundled Python and Tcl/Tk for the window. It opens neither a browser nor a terminal and needs no separate host Tk installation. It is not a Windows executable: setup needs direct access to Linux paths, Proton and Steam configuration. DroidDeck's existing Linux base tools, including `python3` for the desktop launcher and manual scripts, remain required.
+
+The starter temporarily extracts its runtime under `~/.local/share/panacea-arm/native/session.*`, supporting Android download storage without executable permissions or symlinks. Normal exit removes that temporary directory. Game files, prefixes and backups keep their existing locations. Optional **config.env** stays beside **Panacea-Setup.desktop** in the extracted package. Startup failures are recorded in `~/.local/state/panacea-arm/native-start.log`, reset on each launch.
+
+### Small script kit / alternative interfaces
+
+[Panacea-ARM-Linux-Setup.zip](../packages/Panacea-ARM-Linux-Setup.zip?raw=true) remains the small **script kit**, not the standalone native package. It uses the same installation backend. Its launcher uses existing Python/Tk or falls back to the local browser. `bash start-setup.sh --web` explicitly opens the browser; `bash start-setup.sh --terminal` opens the text assistant. The browser server stays on `127.0.0.1`, protected by a session token and origin checks.
+
+All interfaces offer runtime checks/installation, the bundled main `version.dll`, an explicitly selected original `add_registry.bat` and Steam launch options. For OpenKH only, uncheck Kingdom Hearts and DLL installation. OpenKH must already exist as a Steam shortcut and have been started once; its AppID comes from the selected account. Steam and Windows applications stay closed throughout, with no live recognition. Reviewing alone installs nothing. Selected prefixes, replaced DLLs and changed Steam files are backed up before installation.
+
+**Locally installed helpers:** The desktop launcher, assistant checks and installer commands explicitly include `~/.local/bin` in their search path, just like the working manual setup. An existing `~/.local/bin/cabextract` is reused without `sudo` or package installation, even when the desktop did not load your shell profile. `setup.log` records the selected `cabextract` path.
+
+On DroidDeck ARM64, missing or non-working `cabextract`, `curl`, `unzip` and `file` are installed automatically under `~/.local`, including dependencies selected by pacman. Pacman only prints a dependency plan against freshly downloaded private Arch Linux ARM metadata; it does not install system packages or update the system package database. Packages use HTTPS and their repository SHA-256 checksums. Package scripts are not executed. Each helper must start successfully before it is published in `~/.local/bin`; all checks happen before Wine prefix changes. No `sudo`, Android root or fake-root session is required. The working DroidDeck base environment must provide Python 3, pacman and (for zstd packages) bsdtar; the assistant does not reinstall the Linux environment itself.
+
+### Paths from the working manual setup
+
+The assistant uses these locations on existing and new setups; it does not switch libraries based on another discovered prefix or `config_info`:
+
+| Component | Default location |
+|---|---|
+| Steam | `~/.local/share/Steam` |
+| Kingdom Hearts prefix | `~/.local/share/Steam/steamapps/compatdata/2552430/pfx` |
+| OpenKH prefix | `~/.local/share/Steam/steamapps/compatdata/<shortcut-AppID>/pfx` |
+| Game files | `~/Games/Windows/steamapps/common/KINGDOM HEARTS -HD 1.5+2.5 ReMIX-` |
+| Proton | `~/.local/share/droiddeck-esync/dist/<build>` |
+| Backups | `~/panacea-prefix-backups` |
+
+The tested `valve-experimental-11.0-20261001-arm64-1790819359-76e24eb8146d-r1~015ab1a0` build is preferred while present. If it is absent, a single valid build in that same esync directory is accepted. Multiple alternatives require an explicit `KH_PROTON_ROOT` in `config.env`; the assistant never chooses the newest build or switches to stock Proton automatically.
+
+An existing **`config.env` beside `start-setup.sh` takes precedence**. The assistant reads simple `KH_…=…` assignments, quotes, `$HOME` and previously defined variables; it never executes shell commands from that file. An explicitly configured missing path causes a stop instead of a fallback. To intentionally change a path, edit `config.env` and restart (GUI: reload the profile).
+
+Missing prefixes at the intended locations stop the setup. Nothing is moved, and an unrelated prefix in the game library is not substituted. This remains an installer for dependencies in existing Steam prefixes, not a Steam/game downloader or automatic prefix creator. Newly installed Windows components go into the same intended prefixes. These are known manual defaults, not a claim that the currently selected Steam runtime has been observed.
+
+**What gets changed:** the game receives `version=n,b;dinput8=n,b;LuaBackend=n,b`; other DLL overrides, wrappers and arguments are preserved. Only the selected OpenKH shortcut receives `PROTON_USE_WINED3D=1`. Steam must be fully closed. Complex shell expressions or concurrent config edits cause a stop instead of a guessed rewrite; use the manual launch-option instructions below in that case.
+
+The DLL is bundled and SHA-256 checked; no moving `main` download happens during installation. The general KH2 Asset Size Cache remains a separate mod. DroidDeck, Steam, the game, OpenKH and its original Panacea/BASS dependencies must already be installed. This assistant is not an OpenKH downloader.
+
+.NET checks run the Windows x86/x64 hosts, including `Program Files/dotnet/x64`, and accept working **8.x** runtimes instead of downgrading them. Missing runtimes use the same pinned Winetricks/.NET 8.0.12 setup documented below. If Winetricks records a runtime but its checks fail, setup stops without forcing a reinstall. `ucrtbase2019` is never installed. Legacy runtime checks use Winetricks installation records; final game/OpenKH testing is still necessary.
+
+**Logs and recovery:** `~/.local/state/panacea-arm/setup.log` (or `$XDG_STATE_HOME/panacea-arm/setup.log`) is reset for each installation attempt. Backups are timestamped below the selected backup folder; `backup.json` maps originals to backups and `RESTORE.txt` explains recovery. No automatic rollback overwrites a prefix after failure. A full prefix restore also reverts later saves/settings, so retain the current prefix first. Existing Panacea logs are unaffected.
+
+## Manual setup
 
 Extract the ZIP and open a terminal in its `Panacea-ARM-Linux-Setup` folder. If using a repository checkout, enter `linux-setup` instead.
 
@@ -29,7 +81,7 @@ Use any text editor in place of `nano`. Check these settings before installing a
 
 The example Proton path identifies the build used in the original setup; it may change after an update. Select the build actually used by the game. No automatic newest-build selection is performed.
 
-The scripts require an existing prefix with `system.reg` and `drive_c`. They will not create a new one. The original user's separate OpenKH shortcut had AppID **4018651221**; this is a user-specific shortcut ID, not a universal OpenKH AppID. If you need that prefix instead, change **both** the AppID and compatdata path. These scripts accept the two IDs from the recorded setup. Installing a runtime in one prefix does not install it in the other.
+The scripts require an existing prefix with `system.reg` and `drive_c`. They will not create a new one. The original user's separate OpenKH shortcut had AppID **4018651221**; this is a user-specific shortcut ID, not a universal OpenKH AppID. If you need that prefix instead, change **both** the AppID and compatdata path. The scripts accept valid unsigned Steam AppIDs and require the compatdata folder name to match. Installing a runtime in one prefix does not install it in the other.
 
 **If your installation already works, start with the checks. Reinstalling its dependencies is unnecessary.**
 
@@ -52,7 +104,7 @@ All scripts can be run using `bash`; executable permissions are not required. `c
 bash 00-host-tools.sh --install
 ```
 
-Supports Arch with `pacman -S --needed` and Debian/Ubuntu with `apt-get`. Installs Python, pip, curl, cabextract, unzip and file. It does not install another Wine. Winetricks is stored in `tools`, pinned to commit `f3890f670867b5ffbc3938726db45c0f7d16c8ba` and checked before installation or use.
+DroidDeck ARM64 uses the local installation described above and includes `~/.local/bin` in the PATH of the assistant and every installer process. Other supported Linux hosts use `pacman -S --needed` or `apt-get` for missing tools. It does not install another Wine. Winetricks is stored in `tools`, pinned to commit `f3890f670867b5ffbc3938726db45c0f7d16c8ba` and checked before installation or use.
 
 Protontricks is optional. In the recorded setup it found the Steam entries but could not use the custom ARM64 Proton build, so the scripts select that build's Wine directly.
 
@@ -61,7 +113,7 @@ bash 00-host-tools.sh --install --with-protontricks
 tools/protontricks-venv/bin/protontricks -l
 ```
 
-This optional environment uses Protontricks 1.15.0. The installation scripts do not depend on it. Host packages such as pip and cabextract come from your distribution; the historical versions are not forced.
+On DroidDeck this optional command creates an isolated Python environment and bootstraps pip 26.2.1 from its SHA-256-checked PyPI wheel, then installs Protontricks 1.15.0 and its Python dependencies. It needs no system pip, sudo or changes to the system Python. The normal graphical setup does not install Protontricks because it uses Proton Wine directly.
 
 ## 2. Install missing Windows runtimes
 
@@ -139,7 +191,7 @@ Apply this to **OpenKH's own Steam shortcut only**. Keep Kingdom Hearts' working
 
 The failing run had already loaded x64 .NET Core and Windows Desktop **8.0.30** from `C:\Program Files\dotnet\x64\…`. WPF then used Direct3D 9 through DXVK; the log ended with a broken X connection and access violations in `vkCreateGraphicsPipelines` and `vkQueuePresentKHR`. WineD3D uses OpenGL instead of the DXVK/Vulkan path for Direct3D 9, and OpenKH started successfully with this option. The exact underlying graphics component responsible has not been isolated; this is not evidence that every ARM64 installation needs the workaround.
 
-Do not reinstall .NET based only on the original check script's directory listing: it currently checks `Program Files/dotnet` and `Program Files (x86)/dotnet`, but does not inspect the additional `Program Files/dotnet/x64` layout found in this run.
+The check script and assistant now also inspect `Program Files/dotnet/x64` and `dotnet/x86`. The assistant additionally runs the detected Windows hosts; directory presence alone is not a successful runtime test.
 
 Reference: [Valve's Proton runtime options](https://github.com/ValveSoftware/Proton#runtime-config-options).
 
@@ -150,6 +202,9 @@ Installing `ucrtbase2019` caused `c000007b` / `c0000135` errors in the original 
 This recovery is not a normal installation step and should not be repeated on a working prefix. A complete prefix restore would also revert registry settings and potentially newer saves. The kit therefore leaves recovery as an explicit action rather than automatically copying a backup over the active prefix.
 
 ## Validation and limits
+
+The assistant has automated tests for Steam library/shortcut discovery, high-bit shortcut IDs, VDF edits, option merging, separate prefix backups, failures and runtime detection. CI opens the Tk form under Xvfb and validates the desktop launcher. These are host-side tests with mocked Wine/installer calls, not an Android installation test. Profile tests cover fixed locations, preference for the known build, explicit configuration overrides, rejection of shell code, missing prefixes and ambiguous replacement builds.
+
 
 The scripts have been syntax-checked and exercised with mocked Wine/installer calls, including paths with spaces, prefix backups, rejected components and failure handling. They have not been executed here on an Android ARM64 device. File presence alone does not prove a working runtime; use `01-check.sh --wine`, inspect the runtime list and then test the game.
 
@@ -163,3 +218,9 @@ Wine and wineserver are explicitly selected from `files/bin-arm64`. Library sear
 - [Valve Proton 11](https://github.com/ValveSoftware/Proton/blob/proton_11.0/proton)
 - [DroidDeck](https://github.com/Droid-Deck/DroidDeck)
 - [Microsoft .NET installation on Windows](https://learn.microsoft.com/dotnet/core/install/windows)
+
+### Local helper files and removal
+
+Launchers are in `~/.local/bin`; packages, licenses, package checksums and any replaced launcher backups are kept under `~/.local/share/panacea-arm/host-tools/install-*`. Existing working helpers are left untouched. The setup adds the search path for its own processes; it does not rewrite shell startup files. To remove a helper installed by setup, close setup and remove its launcher only if it contains `# Managed by Panacea ARM setup.`; restore its matching `previous/<name>` backup if present. Remove the matching installation directory only when no remaining launcher refers to it. Wine-prefix rollback is separate.
+
+On ARM64 Wine, the x64 .NET host can be located at `Program Files/dotnet/x64/dotnet.exe`. Pinned Winetricks may finish installation and then exit 1 because its final check expects `Program Files/dotnet/dotnet.exe`. Setup recognizes only this specific final-path warning and continues only after Wine and both x86/x64 runtime probes succeed. Other installer errors or missing runtimes still stop setup; no artificial Winetricks installation records are written.

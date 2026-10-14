@@ -10,9 +10,9 @@ done
 printf '\nWinetricks components recorded in this prefix:\n'
 if [[ -f "$WINEPREFIX/winetricks.log" ]]; then cat "$WINEPREFIX/winetricks.log"; else printf 'No winetricks.log found.\n'; fi
 printf '\n.NET installation directories:\n'
-for base in 'Program Files' 'Program Files (x86)'; do
+for base in 'Program Files/dotnet' 'Program Files/dotnet/x64' 'Program Files/dotnet/x86' 'Program Files (x86)/dotnet'; do
     for runtime in Microsoft.NETCore.App Microsoft.WindowsDesktop.App; do
-        path="$WINEPREFIX/drive_c/$base/dotnet/shared/$runtime"
+        path="$WINEPREFIX/drive_c/$base/shared/$runtime"
         if [[ -d "$path" ]]; then printf '%s:\n' "$path"; find "$path" -mindepth 1 -maxdepth 1 -type d -printf '  %f\n'; fi
     done
 done
@@ -28,8 +28,8 @@ done
 if [[ ${1:-} == --wine ]]; then
     printf '\nWine runtime check (may trigger Wine initialization):\n'
     check_wine
-    for base in 'Program Files' 'Program Files (x86)'; do
-        dotnet="$WINEPREFIX/drive_c/$base/dotnet/dotnet.exe"
+    for base in 'Program Files/dotnet' 'Program Files/dotnet/x64' 'Program Files/dotnet/x86' 'Program Files (x86)/dotnet'; do
+        dotnet="$WINEPREFIX/drive_c/$base/dotnet.exe"
         if [[ -f "$dotnet" ]]; then
             "$WINE" "$dotnet" --list-runtimes || fail ".NET could not be started: $dotnet"
         fi
