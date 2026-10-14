@@ -31,6 +31,8 @@ Panacea's own logging settings remain applicable in both variants. Existing log 
 
 The [Linux setup guide (English)](linux-setup/README.md) and [deutsche Anleitung](linux-setup/README-DE.md) cover prefix selection, runtime installation, backups, checks and Steam launch options. Download the [complete setup kit](https://github.com/BeZide93/panacea-arm/raw/refs/heads/main/packages/Panacea-ARM-Linux-Setup.zip), or use the scripts in [`linux-setup`](linux-setup).
 
+**Graphical DroidDeck setup:** extract the setup kit and double-click `Panacea-Setup.desktop`. It detects existing Steam/prefix/Proton installations, backs up selected targets, installs missing runtimes and the bundled main DLL, and can configure the game and OpenKH launch options. See the [assistant instructions](linux-setup/README.md#graphical-setup-for-droiddeck). The first Android test is still required; CI covers the installer logic and Tk startup.
+
 The kit reproduces the recorded DroidDeck setup, including .NET 8.0.12. It uses your existing ARM64 Proton build and rejects `ucrtbase2019`, which broke that setup. Check `config.env` before installing anything; an already working installation does not need its dependencies reinstalled.
 
 **OpenKH opens briefly and closes on ARM64?** Setting `PROTON_USE_WINED3D=1 %command%` in the **OpenKH shortcut's** Steam launch options resolved this in the tested DroidDeck setup. Keep Kingdom Hearts' launch options unchanged. See the [English workaround](linux-setup/README.md#openkh-opens-briefly-and-closes) / [deutschen Hinweis](linux-setup/README-DE.md#openkh-öffnet-sich-kurz-und-schließt-wieder).

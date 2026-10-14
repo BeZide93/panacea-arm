@@ -4,6 +4,25 @@
 
 Stand: 12. Oktober 2026. Für deine Arch-Linux-ARM-/DroidDeck-Umgebung unter Android mit Steam und Proton Experimental ARM64. Im Terminal dieser Linux-Umgebung ausführen, nicht in einer beliebigen Android-/Termux-Shell.
 
+## Grafischer Setup-Assistent für DroidDeck
+
+1. Das [vollständige Setup-ZIP](https://github.com/BeZide93/panacea-arm/raw/refs/heads/main/packages/Panacea-ARM-Linux-Setup.zip) **im Linux-Desktop von DroidDeck** herunterladen und entpacken.
+2. Steam, Kingdom Hearts, OpenKH und andere Windows-Anwendungen vollständig schließen. **`Panacea-Setup.desktop`** im entpackten Ordner doppelklicken. Falls der Dateimanager nachfragt: Ausführung erlauben / Starter als vertrauenswürdig markieren. Den Ordner zusammenlassen.
+3. Erkanntes Spiel, Steam-Konto, vorhandenen Prefix und **den tatsächlich für dieses Programm verwendeten Proton-Build** prüfen. Bei leeren oder mehrdeutigen Feldern über Dropdown oder `…` auswählen. **OpenKH** aktivieren, um zusätzlich dessen eigene Steam-Verknüpfung und Prefix einzurichten.
+4. **Einrichten** anklicken, die angezeigten Änderungen prüfen und bestätigen. Vor der Installation werden alle ausgewählten Prefixe, die ersetzte DLL und geänderte Steam-Dateien gesichert. Anschließend Steam neu öffnen.
+
+Auswählbar sind Runtime-Prüfung/-Installation, Einsetzen der beiliegenden main-version.dll, Ausführen einer ausdrücklich ausgewählten originalen `add_registry.bat` im gewählten Prefix und Einrichten der Startoptionen. Nicht benötigte Schritte abwählen. Für OpenKH allein Kingdom Hearts und DLL-Installation abwählen. OpenKH muss bereits als Steam-Verknüpfung existieren und einmal gestartet worden sein; seine AppID ist nicht fest vorgegeben.
+
+Python 3 gehört zu DroidDecks Linux-Werkzeugen. Fehlt Tk, bietet der Starter dessen Installation im Terminal an. Paketmanager/Windows-Installer können Rückfragen anzeigen; ohne Root ist gegebenenfalls das sudo-Passwort im Terminal nötig. Alternativ lässt sich der Assistent mit `bash start-setup.sh` im entpackten Ordner öffnen.
+
+**Startoptionen:** Beim Spiel werden `version=n,b;dinput8=n,b;LuaBackend=n,b` gesetzt. Weitere DLL-Overrides, Wrapper und Argumente bleiben erhalten. `PROTON_USE_WINED3D=1` wird ausschließlich für die ausgewählte OpenKH-Verknüpfung gesetzt. Steam muss geschlossen sein. Bei komplexen Shell-Ausdrücken oder zwischenzeitlich geänderten Konfigurationsdateien stoppt der Assistent; hierfür bleiben die manuellen Schritte unten verfügbar.
+
+Die beiliegende DLL wird per SHA-256 geprüft, während der Einrichtung nicht von einem veränderlichen Branch heruntergeladen. KH2 Asset Size Cache bleibt eine separate Mod. DroidDeck, Steam, Spiel, OpenKH und dessen ursprüngliche Panacea/BASS-Abhängigkeiten müssen vorhanden sein. Der Assistent lädt OpenKH nicht herunter.
+
+.NET wird über die Windows-x86/x64-Hosts geprüft, auch unter `Program Files/dotnet/x64`. Funktionierende **8.x**-Runtimes bleiben erhalten. Fehlende Runtimes werden mit dem unten dokumentierten Winetricks/.NET-8.0.12-Stand installiert. Ist eine Runtime bei Winetricks eingetragen, besteht aber die Prüfung nicht, wird ohne erzwungene Neuinstallation abgebrochen. `ucrtbase2019` wird nie installiert. Bei den älteren Runtimes werden Winetricks-Installationsnachweise geprüft; ein abschließender Spiel-/OpenKH-Test bleibt nötig.
+
+**Log und Wiederherstellung:** `~/.local/state/panacea-arm/setup.log` (bzw. `$XDG_STATE_HOME/panacea-arm/setup.log`) wird bei jedem Installationsversuch neu geschrieben. Backups liegen mit Zeitstempel im gewählten Sicherungsordner. `backup.json` ordnet Originale und Sicherungen zu; `RESTORE.txt` erklärt die Wiederherstellung. Es gibt keinen automatischen Prefix-Rollback. Eine vollständige Wiederherstellung setzt auch spätere Spielstände/Einstellungen zurück; deshalb den aktuellen Prefix vorher behalten. Panaceas bestehende Logs bleiben unberührt.
+
 ## Was wir damals gemacht haben
 
 | Schritt | Ergebnis |
@@ -51,7 +70,7 @@ bash 01-check.sh
 
 Anstelle von `nano` kann ein beliebiger Texteditor verwendet werden. Skriptmeldungen und Konfigurationskommentare sind auf Englisch; diese Anleitung bleibt deutsch.
 
-In `config.env` vor allem `KH_PROTON_ROOT`, `KH_STEAM_ROOT` und `KH_COMPATDATA` kontrollieren. Das Skript akzeptiert nur einen bereits bestehenden Prefix mit `system.reg` und `drive_c`; es legt keinen neuen an. Den separaten OpenKH-Prefix nur dann auswählen, wenn du tatsächlich den Mod Manager dort reparieren willst: dafür **AppID und Compatdata-Pfad gemeinsam** auf `4018651221` ändern. Die OpenKH-ID ist benutzerspezifisch und keine allgemeine AppID für OpenKH. Die Skripte akzeptieren die beiden IDs aus diesem Setup. Installationen in einem Prefix gelten nicht automatisch im anderen.
+In `config.env` vor allem `KH_PROTON_ROOT`, `KH_STEAM_ROOT` und `KH_COMPATDATA` kontrollieren. Das Skript akzeptiert nur einen bereits bestehenden Prefix mit `system.reg` und `drive_c`; es legt keinen neuen an. Den separaten OpenKH-Prefix nur dann auswählen, wenn du tatsächlich den Mod Manager dort reparieren willst: dafür **AppID und Compatdata-Pfad gemeinsam** auf die ID deiner OpenKH-Verknüpfung ändern (im ursprünglichen Setup `4018651221`). Die OpenKH-ID ist benutzerspezifisch und keine allgemeine AppID für OpenKH. Die Skripte akzeptieren gültige unsigned Steam-AppIDs; der compatdata-Ordnername muss zur ID passen. Installationen in einem Prefix gelten nicht automatisch im anderen.
 
 **Auf deinem bereits funktionierenden System reicht zunächst die Prüfung. Eine Neuinstallation ist nicht erforderlich.**
 
@@ -146,7 +165,7 @@ Das gilt **nur für den eigenen OpenKH-Steam-Eintrag**. Die funktionierenden Sta
 
 Im fehlgeschlagenen Lauf wurden x64 .NET Core und Windows Desktop **8.0.30** bereits aus `C:\Program Files\dotnet\x64\…` geladen. Anschließend nutzte WPF Direct3D 9 über DXVK; am Ende des Logs standen eine abgebrochene X-Verbindung und Speicherzugriffsfehler in `vkCreateGraphicsPipelines` und `vkQueuePresentKHR`. WineD3D verwendet für Direct3D 9 OpenGL statt des DXVK-/Vulkan-Pfads. Damit startete OpenKH bei dir erfolgreich. Welche Grafikkomponente den ursprünglichen Fehler auslöst, ist noch nicht isoliert; die Option ist kein pauschales Erfordernis für alle ARM64-Systeme.
 
-Nicht allein anhand der Verzeichnisliste des ursprünglichen Prüfskripts .NET nachinstallieren: Es prüft derzeit `Program Files/dotnet` und `Program Files (x86)/dotnet`, erfasst aber nicht die zusätzliche Struktur `Program Files/dotnet/x64` aus diesem Lauf.
+Das Prüfskript und der Assistent prüfen jetzt auch `Program Files/dotnet/x64` und `dotnet/x86`. Der Assistent führt die gefundenen Windows-Hosts zusätzlich aus; vorhandene Verzeichnisse allein belegen keine funktionierende Runtime.
 
 Quelle: [Valve: Proton-Laufzeitoptionen](https://github.com/ValveSoftware/Proton#runtime-config-options).
 
@@ -155,6 +174,8 @@ Quelle: [Valve: Proton-Laufzeitoptionen](https://github.com/ValveSoftware/Proton
 Zurückgesetzt wurden genau `drive_c/windows/system32/ucrtbase.dll` und `drive_c/windows/syswow64/ucrtbase.dll`, jeweils aus der zugehörigen alten Prefix-Sicherung. Das ist **kein normaler Installationsschritt** und wird auf dem jetzt funktionierenden System nicht wiederholt. Eine Vollwiederherstellung würde zusätzlich Registry, Einstellungen und mögliche spätere Spielstände zurücksetzen; vorhandene Backups deshalb nicht blind über den aktuellen Prefix kopieren.
 
 ## Prüfung und Grenzen
+
+Für den Assistenten prüft die CI Steam-Erkennung, VDF-Änderungen, getrennte Prefix-Backups, Fehlerfälle und Runtime-Erkennung. Sie öffnet außerdem das Tk-Fenster unter Xvfb und validiert den Desktop-Starter. Ein Test auf einem echten DroidDeck-Gerät steht noch aus. Der vorgeschlagene Proton-Pfad stammt aus der Prefix-Historie oder einem einzelnen vorhandenen Kandidaten; bei mehreren Kandidaten wird nicht automatisch der neueste gewählt.
 
 Die Skripte wurden hier syntaktisch und mit nachgebildeten Wine-/Installationsaufrufen geprüft, einschließlich Pfaden mit Leerzeichen, Prefix-Sicherung, Ablehnung unerlaubter Komponenten und Abbruch bei Wine-Fehlern. Dein Android-/ARM64-System wurde hier nicht ausgeführt. Ein positiver Dateicheck allein belegt noch keine funktionierende Runtime; `--wine`, .NET-Runtime-Ausgabe und der tatsächliche Spielstart sind die nächsten praktischen Prüfungen.
 

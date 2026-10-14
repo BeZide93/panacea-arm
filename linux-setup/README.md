@@ -6,7 +6,26 @@ Helper scripts for an existing OpenKH / Kingdom Hearts installation in **DroidDe
 
 This kit reconstructs the dependency setup used on October 12, 2026. It is not a complete Steam, DroidDeck or OpenKH installer. The scripts were newly written from the recorded steps; they are not a verbatim terminal transcript.
 
-## Quick start
+## Graphical setup for DroidDeck
+
+1. Download and extract the [complete setup ZIP](https://github.com/BeZide93/panacea-arm/raw/refs/heads/main/packages/Panacea-ARM-Linux-Setup.zip) **inside DroidDeck's Linux desktop**.
+2. Close Steam, Kingdom Hearts, OpenKH and other Windows applications. Double-click **`Panacea-Setup.desktop`** in the extracted folder. If the file manager asks, allow execution / mark the launcher as trusted. Keep the entire folder together.
+3. Review the detected game, Steam account, existing prefix and **the Proton build actually used by that program**. Select missing/ambiguous paths with the dropdowns or `…`. Enable **OpenKH** if you also want to configure its separate Steam shortcut/prefix.
+4. Click **Einrichten**, review the changes and confirm. The assistant backs up each selected prefix, the replaced DLL and changed Steam files before installation. Reopen Steam after it finishes.
+
+The German-language form can check/install missing runtimes, install the bundled main `version.dll`, run an explicitly selected original `add_registry.bat` in the selected prefix, and merge Steam launch options. Uncheck operations you do not need. For OpenKH alone, uncheck Kingdom Hearts and DLL installation. OpenKH must already exist as a Steam shortcut and have been started once. There is no fixed shortcut AppID.
+
+Python 3 is supplied by DroidDeck's Linux tools. If Tk is missing, the launcher offers to install it in a terminal. Package managers / Windows installers may still ask for confirmation; non-root users may need to enter their sudo password in that terminal. A terminal fallback is `bash start-setup.sh` from the extracted folder.
+
+**What gets changed:** the game receives `version=n,b;dinput8=n,b;LuaBackend=n,b`; other DLL overrides, wrappers and arguments are preserved. Only the selected OpenKH shortcut receives `PROTON_USE_WINED3D=1`. Steam must be fully closed. Complex shell expressions or concurrent config edits cause a stop instead of a guessed rewrite; use the manual launch-option instructions below in that case.
+
+The DLL is bundled and SHA-256 checked; no moving `main` download happens during installation. The general KH2 Asset Size Cache remains a separate mod. DroidDeck, Steam, the game, OpenKH and its original Panacea/BASS dependencies must already be installed. This assistant is not an OpenKH downloader.
+
+.NET checks run the Windows x86/x64 hosts, including `Program Files/dotnet/x64`, and accept working **8.x** runtimes instead of downgrading them. Missing runtimes use the same pinned Winetricks/.NET 8.0.12 setup documented below. If Winetricks records a runtime but its checks fail, setup stops without forcing a reinstall. `ucrtbase2019` is never installed. Legacy runtime checks use Winetricks installation records; final game/OpenKH testing is still necessary.
+
+**Logs and recovery:** `~/.local/state/panacea-arm/setup.log` (or `$XDG_STATE_HOME/panacea-arm/setup.log`) is reset for each installation attempt. Backups are timestamped below the selected backup folder; `backup.json` maps originals to backups and `RESTORE.txt` explains recovery. No automatic rollback overwrites a prefix after failure. A full prefix restore also reverts later saves/settings, so retain the current prefix first. Existing Panacea logs are unaffected.
+
+## Manual setup
 
 Extract the ZIP and open a terminal in its `Panacea-ARM-Linux-Setup` folder. If using a repository checkout, enter `linux-setup` instead.
 
@@ -29,7 +48,7 @@ Use any text editor in place of `nano`. Check these settings before installing a
 
 The example Proton path identifies the build used in the original setup; it may change after an update. Select the build actually used by the game. No automatic newest-build selection is performed.
 
-The scripts require an existing prefix with `system.reg` and `drive_c`. They will not create a new one. The original user's separate OpenKH shortcut had AppID **4018651221**; this is a user-specific shortcut ID, not a universal OpenKH AppID. If you need that prefix instead, change **both** the AppID and compatdata path. These scripts accept the two IDs from the recorded setup. Installing a runtime in one prefix does not install it in the other.
+The scripts require an existing prefix with `system.reg` and `drive_c`. They will not create a new one. The original user's separate OpenKH shortcut had AppID **4018651221**; this is a user-specific shortcut ID, not a universal OpenKH AppID. If you need that prefix instead, change **both** the AppID and compatdata path. The scripts accept valid unsigned Steam AppIDs and require the compatdata folder name to match. Installing a runtime in one prefix does not install it in the other.
 
 **If your installation already works, start with the checks. Reinstalling its dependencies is unnecessary.**
 
@@ -139,7 +158,7 @@ Apply this to **OpenKH's own Steam shortcut only**. Keep Kingdom Hearts' working
 
 The failing run had already loaded x64 .NET Core and Windows Desktop **8.0.30** from `C:\Program Files\dotnet\x64\…`. WPF then used Direct3D 9 through DXVK; the log ended with a broken X connection and access violations in `vkCreateGraphicsPipelines` and `vkQueuePresentKHR`. WineD3D uses OpenGL instead of the DXVK/Vulkan path for Direct3D 9, and OpenKH started successfully with this option. The exact underlying graphics component responsible has not been isolated; this is not evidence that every ARM64 installation needs the workaround.
 
-Do not reinstall .NET based only on the original check script's directory listing: it currently checks `Program Files/dotnet` and `Program Files (x86)/dotnet`, but does not inspect the additional `Program Files/dotnet/x64` layout found in this run.
+The check script and assistant now also inspect `Program Files/dotnet/x64` and `dotnet/x86`. The assistant additionally runs the detected Windows hosts; directory presence alone is not a successful runtime test.
 
 Reference: [Valve's Proton runtime options](https://github.com/ValveSoftware/Proton#runtime-config-options).
 
@@ -150,6 +169,9 @@ Installing `ucrtbase2019` caused `c000007b` / `c0000135` errors in the original 
 This recovery is not a normal installation step and should not be repeated on a working prefix. A complete prefix restore would also revert registry settings and potentially newer saves. The kit therefore leaves recovery as an explicit action rather than automatically copying a backup over the active prefix.
 
 ## Validation and limits
+
+The assistant has automated tests for Steam library/shortcut discovery, high-bit shortcut IDs, VDF edits, option merging, separate prefix backups, failures and runtime detection. CI opens the Tk form under Xvfb and validates the desktop launcher. These are host-side tests with mocked Wine/installer calls, not an Android installation test. The detected Proton path is a suggestion from the prefix history or a single available candidate; confirm it against Steam. Multiple candidates are never resolved by picking the newest build.
+
 
 The scripts have been syntax-checked and exercised with mocked Wine/installer calls, including paths with spaces, prefix backups, rejected components and failure handling. They have not been executed here on an Android ARM64 device. File presence alone does not prove a working runtime; use `01-check.sh --wine`, inspect the runtime list and then test the game.
 

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Panacea DroidDeck Setup
+Comment=Set up Panacea and OpenKH in an existing DroidDeck installation
+Exec=python3 -c "import os,sys; from pathlib import Path; from urllib.parse import urlparse,unquote; p=sys.argv[1]; p=unquote(urlparse(p).path) if p.startswith('file:') else p; os.execv('/bin/bash',['bash',str(Path(p).resolve().parent/'start-setup.sh')])" %k
+Icon=system-software-install
+Terminal=true
+Categories=Utility;
+StartupNotify=false

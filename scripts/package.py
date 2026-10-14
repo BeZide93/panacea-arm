@@ -28,9 +28,9 @@ def main():
     }
     for folder in ['src', 'tests', 'scripts', '.github/workflows', 'linux-setup']:
         for path in sorted((ROOT / folder).rglob('*')):
-            if folder == 'linux-setup' and (path.parent != ROOT / folder or path.name == 'config.env'):
+            if folder == 'linux-setup' and (path.name == 'config.env' or any(part in {'tools', '__pycache__', 'payload'} for part in path.relative_to(ROOT / folder).parts)):
                 continue
-            if path.is_file() and path.suffix in {'.py', '.c', '.h', '.S', '.yml', '.sh', '.md', '.env', '.txt'}:
+            if path.is_file() and path.suffix in {'.py', '.c', '.h', '.S', '.yml', '.sh', '.md', '.env', '.txt', '.desktop'}:
                 files[path.relative_to(ROOT).as_posix()] = path.read_bytes()
     files['BUILD-MANIFEST.json'] = (json.dumps(manifest, indent=2) + '\n').encode()
     files['EXPORTS.txt'] = (ROOT / 'build/exports.txt').read_bytes()

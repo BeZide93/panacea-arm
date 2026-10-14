@@ -21,7 +21,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y binutils gcc
+          sudo apt-get install -y binutils gcc python3-tk xvfb xauth desktop-file-utils
           python3 -m pip install -r requirements.txt
       - name: Build Windows x64 DLL
         run: |
@@ -46,6 +46,11 @@ jobs:
           cmp build/first-build.dll version.dll
       - name: Package DLL, sources, instructions and rollback
         run: python3 scripts/package.py
+      - name: Test DroidDeck setup assistant
+        run: |
+          python3 -m unittest discover -s tests -p test_setup_assistant.py -v
+          desktop-file-validate linux-setup/Panacea-Setup.desktop
+          xvfb-run -a python3 tests/setup_gui_smoke.py
       - name: Check and package Linux setup scripts
         run: |
           for script in linux-setup/*.sh; do bash -n "$script"; done
