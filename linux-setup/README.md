@@ -15,7 +15,9 @@ This kit reconstructs the dependency setup used on October 12, 2026. It is not a
 
 The German-language form can check/install missing runtimes, install the bundled main `version.dll`, run an explicitly selected original `add_registry.bat` in the selected prefix, and merge Steam launch options. Uncheck operations you do not need. For OpenKH alone, uncheck Kingdom Hearts and DLL installation. OpenKH must already exist as a Steam shortcut and have been started once. There is no fixed shortcut AppID.
 
-Python 3 is supplied by DroidDeck's Linux tools. If Tk is missing, the launcher offers to install it in a terminal. Package managers / Windows installers may still ask for confirmation; non-root users may need to enter their sudo password in that terminal. A terminal fallback is `bash start-setup.sh` from the extracted folder.
+Python 3 is supplied by DroidDeck's Linux tools. If Tk is missing, the launcher automatically opens a **terminal assistant** with the same detection, review, backups and installer. Choose numbered entries (or enter absolute paths), review the summary, then type exactly `JA` to install; Enter at that final prompt exits without installation. To select this interface explicitly, run `bash start-setup.sh --terminal`. No Tk download or `sudo` is required to open it.
+
+DroidDeck's desktop can identify its user as `root` while running under the Android app UID; that does not provide ordinary Linux root privileges. Existing helper tools are reused, and downloading the verified Winetricks script alone never invokes a package manager. If tools such as `cabextract` are actually missing and the session has neither root privileges nor `sudo`, setup lists them and stops **before modifying any prefix**. Install them through the Linux environment's supported package-installation facility and retry; this assistant does not automate DroidDeck's separate fake-root installer or require Android device root.
 
 **What gets changed:** the game receives `version=n,b;dinput8=n,b;LuaBackend=n,b`; other DLL overrides, wrappers and arguments are preserved. Only the selected OpenKH shortcut receives `PROTON_USE_WINED3D=1`. Steam must be fully closed. Complex shell expressions or concurrent config edits cause a stop instead of a guessed rewrite; use the manual launch-option instructions below in that case.
 
@@ -71,7 +73,7 @@ All scripts can be run using `bash`; executable permissions are not required. `c
 bash 00-host-tools.sh --install
 ```
 
-Supports Arch with `pacman -S --needed` and Debian/Ubuntu with `apt-get`. Installs Python, pip, curl, cabextract, unzip and file. It does not install another Wine. Winetricks is stored in `tools`, pinned to commit `f3890f670867b5ffbc3938726db45c0f7d16c8ba` and checked before installation or use.
+Supports Arch with `pacman -S --needed` and Debian/Ubuntu with `apt-get`. Installs only missing Python, curl, cabextract, unzip and file tools. Pip/venv are checked only when `--with-protontricks` is requested. It does not install another Wine. Winetricks is stored in `tools`, pinned to commit `f3890f670867b5ffbc3938726db45c0f7d16c8ba` and checked before installation or use.
 
 Protontricks is optional. In the recorded setup it found the Steam entries but could not use the custom ARM64 Proton build, so the scripts select that build's Wine directly.
 

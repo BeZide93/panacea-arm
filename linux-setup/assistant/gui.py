@@ -7,10 +7,9 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from core import (APPID, KIT, Plan, Runner, SetupError, Target, accounts, execute,
-                  game_dirs, launch_edits, libraries, prefixes, proton_candidates,
-                  descend, text_vdf,
-                  proton_hint, require_stopped, setup_lock, shortcuts, steam_roots)
+from core import (APPID, Plan, Runner, SetupError, Target, accounts, execute,
+                  game_dirs, libraries, prefixes, proton_candidates,
+                  proton_hint, require_stopped, setup_lock, shortcuts, steam_roots, plan_summary)
 
 
 class Assistant:
@@ -165,23 +164,7 @@ class Assistant:
         return plan
 
     def summary(self,plan):
-        lines=[]
-        for t in plan.targets:lines.append(f'{t.label} ({t.appid})\nPrefix: {t.compat}/pfx\nProton: {t.proton}')
-        lines.append('Backup: '+str(plan.backup_root))
-        if plan.runtimes:lines.append('Runtimes prüfen; fehlende .NET-8-Runtimes (x86/x64), für KH zusätzlich vcrun6 und xaudio29 installieren.\nDas Paket nutzt die dokumentierten Winetricks-Versionen (.NET 8.0.12); vorhandene funktionierende 8.x-Versionen bleiben erhalten.')
-        if plan.install_dll:lines.append('Main version.dll ersetzen: '+str(plan.game_dir))
-        if plan.registry_batch:lines.append(f'Registry-Batch AUSFÜHREN: {plan.registry_batch}\nIm Prefix für AppID {plan.registry_appid}.')
-        if plan.launch_options:
-            edits=launch_edits(plan)
-            if not edits:lines.append('Steam-Startoptionen sind bereits gesetzt.')
-            for path, before, after in edits:
-                if path.name == 'localconfig.vdf':
-                    value=descend(text_vdf(after.decode()),['UserLocalConfigStore','Software','Valve','Steam','apps',APPID,'LaunchOptions']).value
-                    lines.append('Kingdom Hearts Startoptionen:\n'+value)
-                else:
-                    ids={t.appid for t in plan.targets if not t.game}
-                    lines.extend('OpenKH Startoptionen:\n'+s.options for s in shortcuts(after) if s.appid in ids)
-        return '\n\n'.join(lines)
+        return plan_summary(plan)
 
     def review(self):
         try:

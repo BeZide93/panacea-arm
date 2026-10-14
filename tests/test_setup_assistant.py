@@ -15,6 +15,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'linux-setup/assistant'))
 import core
+import terminal
 
 CONFIG = b'''// preserve this comment\n"UserLocalConfigStore" { "Software" { "Valve" { "Steam" { "apps" {
 "2552430" { "LaunchOptions" "PROTON_LOG=1 WINEDLLOVERRIDES=\\"version=b;foo=n\\" gamescope -f -- %command% -windowed" "other" "untouched" }
@@ -204,6 +205,52 @@ class Execution(TemporaryFixture):
         with self.assertRaises(core.SetupError):core.execute(self.plan,self.runner)
         self.assertFalse(self.plan.backup_root.exists())
 
+    @patch('core.require_stopped')
+    def test_terminal_review_cancel_does_not_mutate(self, _):
+        before=(self.cfg/'localconfig.vdf').read_bytes()
+        with patch('terminal.require_stopped'), patch('builtins.input',return_value=''), patch('builtins.print'), patch('terminal.execute') as execute:
+            terminal.review_and_install(self.plan,self.root/'state')
+            execute.assert_not_called()
+        self.assertEqual((self.cfg/'localconfig.vdf').read_bytes(),before)
+        self.assertFalse((self.root/'state').exists())
+        self.assertFalse(self.plan.backup_root.exists())
+
+    @patch('core.require_stopped')
+    def test_terminal_confirmation_uses_real_backups_and_installer(self, _):
+        with patch('terminal.require_stopped'), patch('builtins.input',return_value='JA'), patch('builtins.print'):
+            terminal.review_and_install(self.plan,self.root/'state')
+        self.assertEqual(core.digest((self.game/'version.dll').read_bytes()),core.DLL_SHA256)
+        self.assertTrue(list(self.plan.backup_root.glob('*/backup.json')))
+        self.assertIn('BACKUP COMPLETE',(self.root/'state/setup.log').read_text())
+
+    def test_terminal_detects_both_targets_without_writes(self):
+        answers=['','', 'j', '', '', '', '', '', '', '', '', '', '', '', '']
+        with patch('terminal.steam_roots',return_value=[self.steam]), patch('terminal.proton_candidates',return_value=[self.proton]), patch('terminal.game_dirs',return_value=[self.game]), patch('builtins.input',side_effect=answers), patch('builtins.print'):
+            plan=terminal.build_plan(self.root)
+        self.assertEqual([t.appid for t in plan.targets],[core.APPID,'3000123456'])
+        self.assertEqual(plan.account,'123')
+        self.assertTrue(plan.runtimes and plan.install_dll and plan.launch_options)
+        self.assertIsNone(plan.registry_batch)
+        self.assertEqual((self.game/'version.dll').read_bytes(),b'old DLL')
+
+    @patch('core.require_stopped')
+    def test_winetricks_download_needs_no_sudo_when_tools_present(self, _):
+        self.plan.runtimes=True
+        with patch('core.shutil.which',side_effect=lambda name: None if name=='sudo' else '/bin/'+name), patch('core.os.geteuid',return_value=10234), patch.object(self.runner,'run',side_effect=core.SetupError('stop at helper')) as run:
+            with self.assertRaisesRegex(core.SetupError,'stop at helper'):
+                core.execute(self.plan,self.runner)
+        self.assertEqual(run.call_args.args[0],['bash',core.KIT/'00-host-tools.sh','--install'])
+        self.assertFalse(self.plan.backup_root.exists())
+
+    @patch('core.require_stopped')
+    def test_missing_tools_without_sudo_stop_before_backup(self, _):
+        self.plan.runtimes=True
+        with patch('core.shutil.which',side_effect=lambda name: None if name in ('sudo','cabextract') else '/bin/'+name), patch('core.os.geteuid',return_value=10234), patch.object(self.runner,'run') as run:
+            with self.assertRaisesRegex(core.SetupError,'Missing Linux tools: cabextract'):
+                core.execute(self.plan,self.runner)
+            run.assert_not_called()
+        self.assertFalse(self.plan.backup_root.exists())
+
     def test_runtime_skip_and_wrong_arch_record_fails(self):
         target=self.targets[0];(target.compat/'pfx/winetricks.log').write_text('dotnet8\ndotnetdesktop8\nvcrun6\nxaudio29\n')
         out='Microsoft.NETCore.App 8.0.30 [x]\nMicrosoft.WindowsDesktop.App 8.0.30 [x]\n'
@@ -212,6 +259,50 @@ class Execution(TemporaryFixture):
         self.assertNotIn('winetricks -q',self.log.getvalue())
         with patch('core.reports',return_value=[(0x14c,out)]):
             with self.assertRaises(core.SetupError):core.install_runtimes(target,self.plan,self.runner)
+
+
+class Startup(TemporaryFixture):
+    def test_missing_tk_starts_terminal_without_package_manager(self):
+        bin_dir=self.root/'bin';bin_dir.mkdir()
+        calls=self.root/'calls'
+        for name,body in {
+            'uname':'echo aarch64',
+            'python3':'echo "$*" >> "$CALLS"; if [ "$1" = -c ]; then exit 1; fi',
+            'sudo':'echo UNEXPECTED_SUDO >> "$CALLS"; exit 99',
+            'pacman':'echo UNEXPECTED_PACMAN >> "$CALLS"; exit 99',
+            'apt-get':'echo UNEXPECTED_APT >> "$CALLS"; exit 99',
+        }.items():
+            path=bin_dir/name;path.write_text('#!/bin/sh\n'+body+'\n');path.chmod(0o755)
+        env=dict(os.environ,PATH=str(bin_dir)+':'+os.environ['PATH'],CALLS=str(calls))
+        result=subprocess.run(['bash',str(ROOT/'linux-setup/start-setup.sh')],env=env,input='',text=True,capture_output=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(calls.read_text().splitlines(),['-c import tkinter','assistant/terminal.py'])
+
+    def test_host_tools_reuse_skips_packages_and_verifies_download(self):
+        import shutil
+        kit=self.root/'kit';kit.mkdir()
+        (kit/'common.sh').write_bytes((ROOT/'linux-setup/common.sh').read_bytes())
+        # Use a fixture payload and its real checksum; no network/install commands.
+        payload=b'fixture winetricks\n'
+        script=(ROOT/'linux-setup/00-host-tools.sh').read_text().replace(core.WINETRICKS_SHA256,core.digest(payload))
+        (kit/'00-host-tools.sh').write_text(script)
+        bin_dir=self.root/'bin';bin_dir.mkdir()
+        for name in ['dirname','mkdir','mktemp','sha256sum','chmod','mv','rm']:
+            (bin_dir/name).symlink_to(shutil.which(name))
+        for name in ['python3','cabextract','unzip','file']:
+            path=bin_dir/name;path.write_text('#!/bin/sh\nexit 0\n');path.chmod(0o755)
+        curl=bin_dir/'curl'
+        curl.write_text('#!/bin/sh\nwhile [ "$1" != -o ]; do shift; done\nprintf "fixture winetricks\\n" > "$2"\n');curl.chmod(0o755)
+        env=dict(os.environ,PATH=str(bin_dir))
+        result=subprocess.run(['/bin/bash',str(kit/'00-host-tools.sh'),'--install'],env=env,text=True,capture_output=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('package installation skipped',result.stdout)
+        self.assertEqual((kit/'tools/winetricks').read_bytes(),payload)
+
+    def test_ambiguous_selection_has_no_silent_default(self):
+        with patch('builtins.input',side_effect=['','2']) as prompt, patch('builtins.print'):
+            self.assertEqual(terminal.choose('Proton',['old','new']), 'new')
+        self.assertNotIn('[1]',prompt.call_args_list[0].args[0])
 
 
 if __name__=='__main__':unittest.main()

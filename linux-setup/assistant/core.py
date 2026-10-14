@@ -638,8 +638,12 @@ def execute(plan, runner):
     if plan.runtimes:
         wt = KIT/'tools/winetricks'
         if not all(shutil.which(n) for n in ['python3','curl','cabextract','unzip','file']) or not wt.is_file():
-            runner.log('Installing Linux helper tools; a sudo prompt may appear in the terminal.')
-            if os.geteuid() != 0:
+            runner.log('Preparing missing Linux helper tools and verified Winetricks.')
+            missing = [n for n in ['python3','curl','cabextract','unzip','file'] if not shutil.which(n)]
+            if missing and os.geteuid() != 0:
+                if not shutil.which('sudo'):
+                    raise SetupError('Missing Linux tools: '+', '.join(missing)+
+                                     '. This session has no sudo. Install these tools using your Linux environment’s package installation facility, then retry. No prefix changed.')
                 runner.log('Please confirm sudo in the terminal window opened with this assistant.')
                 # Inherit the terminal so sudo's password prompt stays visible.
                 if subprocess.run(['sudo','-v']).returncode:
@@ -690,3 +694,23 @@ def setup_lock(state):
         except BlockingIOError as e:
             raise SetupError('Another setup assistant is already running.') from e
         yield
+
+
+def plan_summary(plan):
+    lines=[]
+    for t in plan.targets:lines.append(f'{t.label} ({t.appid})\nPrefix: {t.compat}/pfx\nProton: {t.proton}')
+    lines.append('Backup: '+str(plan.backup_root))
+    if plan.runtimes:lines.append('Runtimes prüfen; fehlende .NET-8-Runtimes (x86/x64), für KH zusätzlich vcrun6 und xaudio29 installieren.\nDas Paket nutzt die dokumentierten Winetricks-Versionen (.NET 8.0.12); vorhandene funktionierende 8.x-Versionen bleiben erhalten.')
+    if plan.install_dll:lines.append('Main version.dll ersetzen: '+str(plan.game_dir))
+    if plan.registry_batch:lines.append(f'Registry-Batch AUSFÜHREN: {plan.registry_batch}\nIm Prefix für AppID {plan.registry_appid}.')
+    if plan.launch_options:
+        edits=launch_edits(plan)
+        if not edits:lines.append('Steam-Startoptionen sind bereits gesetzt.')
+        for path, before, after in edits:
+            if path.name == 'localconfig.vdf':
+                value=descend(text_vdf(after.decode()),['UserLocalConfigStore','Software','Valve','Steam','apps',APPID,'LaunchOptions']).value
+                lines.append('Kingdom Hearts Startoptionen:\n'+value)
+            else:
+                ids={t.appid for t in plan.targets if not t.game}
+                lines.extend('OpenKH Startoptionen:\n'+s.options for s in shortcuts(after) if s.appid in ids)
+    return '\n\n'.join(lines)
