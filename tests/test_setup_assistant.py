@@ -17,6 +17,7 @@ sys.path.insert(0,str(ROOT/'linux-setup/assistant'))
 import core
 import terminal
 import setup_profile
+import web
 
 CONFIG = b'''// preserve this comment\n"UserLocalConfigStore" { "Software" { "Valve" { "Steam" { "apps" {
 "2552430" { "LaunchOptions" "PROTON_LOG=1 WINEDLLOVERRIDES=\\"version=b;foo=n\\" gamescope -f -- %command% -windowed" "other" "untouched" }
@@ -257,6 +258,80 @@ class Execution(TemporaryFixture):
             with self.assertRaises(core.SetupError):core.install_runtimes(target,self.plan,self.runner)
 
 
+class BrowserInterface(unittest.TestCase):
+    def setUp(self):
+        self.fixture=Execution(methodName='runTest');self.fixture.setUp()
+        f=self.fixture
+        self.profile=setup_profile.Profile(f.steam,f.game,f.targets[0].compat,f.root/'backups',f.proton,'fixture')
+        self.profile_patch=patch('web.load_profile',return_value=self.profile);self.profile_patch.start()
+        self.stopped_patch=patch('web.require_stopped');self.stopped_patch.start()
+        self.app=web.Application(f.root)
+        self.app.state_dir=f.root/'state'
+        self.data={'account':'123','shortcut':'3000123456','game':True,'openkh':True,
+                   'runtimes':False,'dll':True,'launch':True,'backup':str(f.root/'backups'),
+                   'batch':'','batch_target':core.APPID}
+    def tearDown(self):
+        self.stopped_patch.stop();self.profile_patch.stop();self.fixture.tearDown()
+
+    def test_review_creates_no_files_and_requires_confirmation(self):
+        review=self.app.review(self.data)
+        self.assertIn('OpenKH',review['summary'])
+        self.assertFalse(self.app.state_dir.exists())
+        self.assertFalse(self.profile.backup.exists())
+        with self.assertRaisesRegex(core.SetupError,'zuerst'):
+            self.app.start('invalid')
+
+    def test_profile_change_after_review_rejected(self):
+        review=self.app.review(self.data)
+        self.profile.backup=self.fixture.root/'different'
+        # Backup is explicitly chosen in the UI; change a fixed profile path.
+        self.profile.game=self.fixture.root/'not a game'
+        with self.assertRaises(core.SetupError):self.app.start(review['review_id'])
+        self.assertFalse(self.app.busy)
+        self.assertFalse(self.fixture.plan.backup_root.exists())
+
+    def test_launch_config_change_after_review_rejected(self):
+        review=self.app.review(self.data)
+        path=self.fixture.cfg/'localconfig.vdf'
+        path.write_bytes(path.read_bytes().replace(b'PROTON_LOG=1',b'PROTON_LOG=0'))
+        with self.assertRaisesRegex(core.SetupError,'geändert'):
+            self.app.start(review['review_id'])
+
+    def test_http_auth_origin_and_host_before_mutations(self):
+        import http.client
+        import threading
+        server=web.Server(self.app)
+        thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+        try:
+            def request(headers):
+                connection=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=5)
+                connection.request('POST','/api/review',json.dumps(self.data),headers)
+                response=connection.getresponse();status=response.status;response.read();connection.close();return status
+            headers={'Content-Type':'application/json'}
+            self.assertEqual(request(headers),403)
+            headers['Authorization']='Bearer '+server.token
+            headers['Origin']='https://unrelated.example'
+            self.assertEqual(request(headers),403)
+            headers['Origin']=server.origin;headers['Host']='unrelated.example'
+            self.assertEqual(request(headers),403)
+            headers['Host']=server.origin.removeprefix('http://')
+            self.assertEqual(request(headers),200)
+            self.assertFalse(self.app.state_dir.exists())
+            self.assertFalse(self.profile.backup.exists())
+        finally:
+            server.shutdown();server.server_close();thread.join()
+
+    def test_busy_and_replayed_start_rejected(self):
+        review=self.app.review(self.data)
+        with patch('web.threading.Thread') as thread:
+            self.app.start(review['review_id'])
+            self.assertTrue(self.app.busy)
+            with self.assertRaisesRegex(core.SetupError,'bereits'):self.app.start(review['review_id'])
+            thread.assert_called_once()
+        self.app.busy=False
+        with self.assertRaisesRegex(core.SetupError,'zuerst'):self.app.start(review['review_id'])
+
+
 class ManualProfile(TemporaryFixture):
     def make_proton(self, name):
         p=self.root/'.local/share/droiddeck-esync/dist'/name
@@ -312,7 +387,7 @@ class ManualProfile(TemporaryFixture):
 
 
 class Startup(TemporaryFixture):
-    def test_missing_tk_starts_terminal_without_package_manager(self):
+    def test_missing_tk_starts_browser_without_package_manager(self):
         bin_dir=self.root/'bin';bin_dir.mkdir()
         calls=self.root/'calls'
         for name,body in {
@@ -326,7 +401,7 @@ class Startup(TemporaryFixture):
         env=dict(os.environ,PATH=str(bin_dir)+':'+os.environ['PATH'],CALLS=str(calls))
         result=subprocess.run(['bash',str(ROOT/'linux-setup/start-setup.sh')],env=env,input='',text=True,capture_output=True)
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(calls.read_text().splitlines(),['-c import tkinter','assistant/terminal.py'])
+        self.assertEqual(calls.read_text().splitlines(),['-c import tkinter','assistant/web.py'])
 
     def test_host_tools_reuse_skips_packages_and_verifies_download(self):
         import shutil

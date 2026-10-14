@@ -51,6 +51,12 @@ jobs:
           python3 -m unittest discover -s tests -p test_setup_assistant.py -v
           desktop-file-validate linux-setup/Panacea-Setup.desktop
           xvfb-run -a python3 tests/setup_gui_smoke.py
+      - name: Test browser setup interface
+        run: |
+          npm install --prefix "$RUNNER_TEMP/panacea-browser-test" --no-audit --no-fund playwright@1.64.0
+          export NODE_PATH="$RUNNER_TEMP/panacea-browser-test/node_modules"
+          node "$NODE_PATH/playwright/cli.js" install --with-deps chromium
+          node tests/setup_web_smoke.cjs
       - name: Check and package Linux setup scripts
         run: |
           for script in linux-setup/*.sh; do bash -n "$script"; done

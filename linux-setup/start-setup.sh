@@ -10,12 +10,13 @@ if ! command -v python3 >/dev/null; then
 fi
 case "${1:-}" in
     --terminal) python3 assistant/terminal.py; exit $? ;;
+    --web) python3 assistant/web.py; exit $? ;;
     '') ;;
-    *) printf 'Usage: bash start-setup.sh [--terminal]\n' >&2; exit 1 ;;
+    *) printf 'Usage: bash start-setup.sh [--terminal|--web]\n' >&2; exit 1 ;;
 esac
 if ! python3 -c 'import tkinter' >/dev/null 2>&1; then
-    printf 'Tk is unavailable. Starting the terminal assistant; no sudo or Tk installation is needed.\n'
-    python3 assistant/terminal.py
+    printf 'Tk is unavailable. Opening the graphical browser assistant; no sudo or Tk installation is needed.\n'
+    python3 assistant/web.py
 else
     python3 assistant/gui.py
 fi
