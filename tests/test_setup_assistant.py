@@ -248,6 +248,18 @@ class Execution(TemporaryFixture):
             run.assert_not_called()
         self.assertFalse(self.plan.backup_root.exists())
 
+    @patch('core.require_stopped')
+    def test_arm_helper_failure_stops_before_prefix_changes(self, _):
+        self.plan.runtimes=True
+        before=(self.cfg/'localconfig.vdf').read_bytes()
+        with patch('core.platform.machine',return_value='aarch64'), patch('host_tools.prepare',side_effect=core.SetupError('helper download failed')) as prepare:
+            with self.assertRaisesRegex(core.SetupError,'helper download failed'):
+                core.execute(self.plan,self.runner)
+        prepare.assert_called_once()
+        self.assertFalse(self.plan.backup_root.exists())
+        self.assertEqual((self.game/'version.dll').read_bytes(),b'old DLL')
+        self.assertEqual((self.cfg/'localconfig.vdf').read_bytes(),before)
+
     def test_runtime_skip_and_wrong_arch_record_fails(self):
         target=self.targets[0];(target.compat/'pfx/winetricks.log').write_text('dotnet8\ndotnetdesktop8\nvcrun6\nxaudio29\n')
         out='Microsoft.NETCore.App 8.0.30 [x]\nMicrosoft.WindowsDesktop.App 8.0.30 [x]\n'
@@ -276,7 +288,7 @@ class Execution(TemporaryFixture):
             self.assertEqual(env['PATH'].split(':')[:2],[str(self.proton/'files/bin-arm64'),str(local)])
             for scope in [None,env]:
                 self.assertIn('version 1.11',runner.run(['cabextract','--version'],env=scope))
-        with patch.dict(os.environ,HOME=str(self.root),PATH=str(host)), patch('core.KIT',kit), patch('core.WINETRICKS_SHA256',core.digest(payload)), patch('core.os.geteuid',return_value=10234), patch('core.install_runtimes',side_effect=runtime):
+        with patch.dict(os.environ,HOME=str(self.root),PATH=str(host)), patch('core.platform.machine',return_value='aarch64'), patch('core.KIT',kit), patch('core.WINETRICKS_SHA256',core.digest(payload)), patch('core.os.geteuid',return_value=10234), patch('core.install_runtimes',side_effect=runtime):
             self.assertIsNone(shutil.which('cabextract'))
             self.assertIsNone(shutil.which('sudo'))
             before=os.environ.copy()
@@ -442,7 +454,7 @@ class Startup(TemporaryFixture):
         script=(ROOT/'linux-setup/00-host-tools.sh').read_text().replace(core.WINETRICKS_SHA256,core.digest(payload))
         (kit/'00-host-tools.sh').write_text(script)
         bin_dir=self.root/'bin';bin_dir.mkdir()
-        for name in ['dirname','mkdir','mktemp','sha256sum','chmod','mv','rm']:
+        for name in ['dirname','mkdir','mktemp','sha256sum','chmod','mv','rm','uname']:
             (bin_dir/name).symlink_to(shutil.which(name))
         for name in ['python3','unzip','file']:
             path=bin_dir/name;path.write_text('#!/bin/sh\nexit 0\n');path.chmod(0o755)

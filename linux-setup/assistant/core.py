@@ -12,6 +12,7 @@ import fcntl
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import shlex
@@ -634,6 +635,11 @@ def execute(plan, runner):
     dll = dll_payload() if plan.install_dll else None
     dll_before = (plan.game_dir/'version.dll').read_bytes() if dll and (plan.game_dir/'version.dll').exists() else None
     if plan.runtimes:
+        if platform.machine().lower() in ('aarch64','arm64'):
+            # DroidDeck's app UID has no sudo. Resolve/install missing helpers
+            # locally before touching any Wine prefix, as in the manual setup.
+            from host_tools import prepare
+            prepare(runner.log)
         wt = KIT/'tools/winetricks'
         search_path = host_env()['PATH']
         missing = [n for n in ['python3','curl','cabextract','unzip','file'] if not shutil.which(n, path=search_path)]
@@ -701,7 +707,7 @@ def plan_summary(plan):
     lines=[]
     for t in plan.targets:lines.append(f'{t.label} ({t.appid})\nPrefix: {t.compat}/pfx\nProton: {t.proton}')
     lines.append('Backup: '+str(plan.backup_root))
-    if plan.runtimes:lines.append('Runtimes prüfen; fehlende .NET-8-Runtimes (x86/x64), für KH zusätzlich vcrun6 und xaudio29 installieren.\nDas Paket nutzt die dokumentierten Winetricks-Versionen (.NET 8.0.12); vorhandene funktionierende 8.x-Versionen bleiben erhalten.')
+    if plan.runtimes:lines.append('Linux-Helfer prüfen; fehlendes cabextract, curl, unzip und file samt benötigten Bibliotheken unter ~/.local installieren (DroidDeck: ohne sudo).\nRuntimes prüfen; fehlende .NET-8-Runtimes (x86/x64), für KH zusätzlich vcrun6 und xaudio29 installieren.\nDas Paket nutzt die dokumentierten Winetricks-Versionen (.NET 8.0.12); vorhandene funktionierende 8.x-Versionen bleiben erhalten.')
     if plan.install_dll:lines.append('Main version.dll ersetzen: '+str(plan.game_dir))
     if plan.registry_batch:lines.append(f'Registry-Batch AUSFÜHREN: {plan.registry_batch}\nIm Prefix für AppID {plan.registry_appid}.')
     if plan.launch_options:

@@ -21,7 +21,7 @@ Explicit browser mode: `bash start-setup.sh --web`. The text assistant remains a
 
 **Locally installed helpers:** The desktop launcher, assistant checks and installer commands explicitly include `~/.local/bin` in their search path, just like the working manual setup. An existing `~/.local/bin/cabextract` is reused without `sudo` or package installation, even when the desktop did not load your shell profile. `setup.log` records the selected `cabextract` path.
 
-DroidDeck's desktop can identify its user as `root` while running under the Android app UID; that does not provide ordinary Linux root privileges. Existing helper tools are reused, and downloading the verified Winetricks script alone never invokes a package manager. If tools such as `cabextract` are actually missing and the session has neither root privileges nor `sudo`, setup lists them and stops **before modifying any prefix**. Install them through the Linux environment's supported package-installation facility and retry; this assistant does not automate DroidDeck's separate fake-root installer or require Android device root.
+On DroidDeck ARM64, missing or non-working `cabextract`, `curl`, `unzip` and `file` are installed automatically under `~/.local`, including dependencies selected by pacman. Pacman only prints a dependency plan against freshly downloaded private Arch Linux ARM metadata; it does not install system packages or update the system package database. Packages use HTTPS and their repository SHA-256 checksums. Package scripts are not executed. Each helper must start successfully before it is published in `~/.local/bin`; all checks happen before Wine prefix changes. No `sudo`, Android root or fake-root session is required. The working DroidDeck base environment must provide Python 3, pacman and (for zstd packages) bsdtar; the assistant does not reinstall the Linux environment itself.
 
 ### Paths from the working manual setup
 
@@ -96,7 +96,7 @@ All scripts can be run using `bash`; executable permissions are not required. `c
 bash 00-host-tools.sh --install
 ```
 
-Supports Arch with `pacman -S --needed` and Debian/Ubuntu with `apt-get`. Installs only missing Python, curl, cabextract, unzip and file tools. Pip/venv are checked only when `--with-protontricks` is requested. It does not install another Wine. Winetricks is stored in `tools`, pinned to commit `f3890f670867b5ffbc3938726db45c0f7d16c8ba` and checked before installation or use.
+DroidDeck ARM64 uses the local installation described above and includes `~/.local/bin` in the PATH of the assistant and every installer process. Other supported Linux hosts use `pacman -S --needed` or `apt-get` for missing tools. It does not install another Wine. Winetricks is stored in `tools`, pinned to commit `f3890f670867b5ffbc3938726db45c0f7d16c8ba` and checked before installation or use.
 
 Protontricks is optional. In the recorded setup it found the Steam entries but could not use the custom ARM64 Proton build, so the scripts select that build's Wine directly.
 
@@ -105,7 +105,7 @@ bash 00-host-tools.sh --install --with-protontricks
 tools/protontricks-venv/bin/protontricks -l
 ```
 
-This optional environment uses Protontricks 1.15.0. The installation scripts do not depend on it. Host packages such as pip and cabextract come from your distribution; the historical versions are not forced.
+On DroidDeck this optional command creates an isolated Python environment and bootstraps pip 26.2.1 from its SHA-256-checked PyPI wheel, then installs Protontricks 1.15.0 and its Python dependencies. It needs no system pip, sudo or changes to the system Python. The normal graphical setup does not install Protontricks because it uses Proton Wine directly.
 
 ## 2. Install missing Windows runtimes
 
@@ -210,3 +210,7 @@ Wine and wineserver are explicitly selected from `files/bin-arm64`. Library sear
 - [Valve Proton 11](https://github.com/ValveSoftware/Proton/blob/proton_11.0/proton)
 - [DroidDeck](https://github.com/Droid-Deck/DroidDeck)
 - [Microsoft .NET installation on Windows](https://learn.microsoft.com/dotnet/core/install/windows)
+
+### Local helper files and removal
+
+Launchers are in `~/.local/bin`; packages, licenses, package checksums and any replaced launcher backups are kept under `~/.local/share/panacea-arm/host-tools/install-*`. Existing working helpers are left untouched. The setup adds the search path for its own processes; it does not rewrite shell startup files. To remove a helper installed by setup, close setup and remove its launcher only if it contains `# Managed by Panacea ARM setup.`; restore its matching `previous/<name>` backup if present. Remove the matching installation directory only when no remaining launcher refers to it. Wine-prefix rollback is separate.

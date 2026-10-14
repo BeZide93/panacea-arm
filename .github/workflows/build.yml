@@ -49,6 +49,7 @@ jobs:
       - name: Test DroidDeck setup assistant
         run: |
           python3 -m unittest discover -s tests -p test_setup_assistant.py -v
+          python3 -m unittest discover -s tests -p test_host_tools.py -v
           desktop-file-validate linux-setup/Panacea-Setup.desktop
           xvfb-run -a python3 tests/setup_gui_smoke.py
       - name: Test browser setup interface

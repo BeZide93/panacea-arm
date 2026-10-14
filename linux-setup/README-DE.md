@@ -19,7 +19,7 @@ Explizit im Browser starten: `bash start-setup.sh --web`. Der Text-Assistent ble
 
 **Lokal installierte Hilfsprogramme:** Desktop-Starter, Prüfungen und Installationsaufrufe berücksichtigen ausdrücklich `~/.local/bin`, wie bei der funktionierenden manuellen Einrichtung. Ein vorhandenes `~/.local/bin/cabextract` wird ohne `sudo` oder Paketinstallation weiterverwendet, auch wenn der Desktop dein Shell-Profil nicht geladen hat. Der verwendete `cabextract`-Pfad steht in `setup.log`.
 
-DroidDeck kann den Benutzernamen `root` anzeigen, obwohl der Desktop mit der Android-App-UID läuft. Vorhandene Hilfsprogramme werden weiterverwendet; allein für den Download des geprüften Winetricks-Skripts wird kein Paketmanager gestartet. Fehlen tatsächlich Programme wie `cabextract` und gibt es weder Root-Rechte noch `sudo`, nennt das Setup die fehlenden Programme und stoppt **vor jeder Prefix-Änderung**. Diese über die unterstützte Paketinstallation der Linux-Umgebung ergänzen und erneut starten. DroidDecks separater Fake-Root-Installer wird hier nicht automatisiert; Android-Geräte-Root ist nicht nötig.
+Auf DroidDeck ARM64 installiert der Assistent fehlendes oder nicht startfähiges `cabextract`, `curl`, `unzip` und `file` automatisch unter `~/.local`, einschließlich der von pacman ermittelten Abhängigkeiten. Pacman erstellt nur einen Paketplan anhand frisch geladener, separater Arch-Linux-ARM-Metadaten; Systempakete und System-Paketdatenbank bleiben unverändert. Downloads erfolgen per HTTPS mit Prüfung der Repository-SHA-256-Prüfsummen. Paket-Installationsskripte werden nicht ausgeführt. Jedes Hilfsprogramm muss erfolgreich starten, bevor es unter `~/.local/bin` bereitgestellt wird. Diese Prüfungen erfolgen vor Änderungen am Wine-Prefix. Dafür sind weder `sudo`, Android-Root noch eine Fake-Root-Sitzung nötig. Vorausgesetzt wird eine funktionierende DroidDeck-Linux-Basis mit Python 3, pacman und (für zstd-Pakete) bsdtar; die Linux-Umgebung selbst wird nicht neu installiert.
 
 **Startoptionen:** Beim Spiel werden `version=n,b;dinput8=n,b;LuaBackend=n,b` gesetzt. Weitere DLL-Overrides, Wrapper und Argumente bleiben erhalten. `PROTON_USE_WINED3D=1` wird ausschließlich für die ausgewählte OpenKH-Verknüpfung gesetzt. Steam muss geschlossen sein. Bei komplexen Shell-Ausdrücken oder zwischenzeitlich geänderten Konfigurationsdateien stoppt der Assistent; hierfür bleiben die manuellen Schritte unten verfügbar.
 
@@ -123,7 +123,7 @@ bash 00-host-tools.sh --install --with-protontricks
 tools/protontricks-venv/bin/protontricks -l
 ```
 
-Das optionale Protontricks wird nicht für die eigentliche ARM64-Installation verwendet. Die früheren pip-/cabextract-Versionen sind historische Angaben; das Skript verwendet hierfür die Pakete deiner Distribution.
+Auf DroidDeck erstellt dieser optionale Aufruf eine separate Python-Umgebung, richtet pip 26.2.1 aus einem per SHA-256 geprüften PyPI-Wheel ein und installiert Protontricks 1.15.0 samt Python-Abhängigkeiten. System-pip und sudo sind nicht nötig; das System-Python bleibt unverändert. Der normale grafische Ablauf benötigt Protontricks nicht und verwendet Proton-Wine direkt.
 
 ### 2. Windows-Runtimes im richtigen Prefix
 
@@ -214,3 +214,7 @@ Die Library-Pfade in `common.sh` folgen dem aktuellen Proton-11-Code; ihre exakt
 - [Valve Proton 11: ARM64-Wine-Auswahl und init_wine](https://github.com/ValveSoftware/Proton/blob/proton_11.0/proton)
 - [DroidDeck](https://github.com/Droid-Deck/DroidDeck)
 - [Microsoft: .NET unter Windows](https://learn.microsoft.com/dotnet/core/install/windows)
+
+### Lokale Hilfsprogramme und Entfernen
+
+Starter liegen unter `~/.local/bin`; Pakete, Lizenzen, Paket-Prüfsummen und Sicherungen eventuell ersetzter Starter unter `~/.local/share/panacea-arm/host-tools/install-*`. Funktionierende vorhandene Helfer bleiben erhalten. Das Setup setzt den Suchpfad für sich und alle Installationsprozesse; Shell-Startdateien werden nicht umgeschrieben. Zum Entfernen Setup schließen und nur einen Starter löschen, der `# Managed by Panacea ARM setup.` enthält; gegebenenfalls seine passende Sicherung `previous/<name>` wiederherstellen. Den zugehörigen Installationsordner erst entfernen, wenn kein anderer Starter mehr darauf verweist. Die Wiederherstellung des Wine-Prefixes ist davon unabhängig.
